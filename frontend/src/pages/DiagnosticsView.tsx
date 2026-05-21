@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Card } from '../components/ui/Card';
-import { AlertCircle, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { AlertCircle, CheckCircle2, AlertTriangle, Download } from 'lucide-react';
 import apiClient from '../lib/api';
 
 interface Violation {
@@ -111,14 +111,62 @@ export const DiagnosticsView = ({ fileId }: { fileId: string | null }) => {
     return severity.toLowerCase() === 'critical' ? 'text-red-400' : 'text-yellow-400';
   };
 
+  const handleDownloadMarkdown = () => {
+    const ts = new Date(summary.checked_at).toISOString().replace(/[:T]/g, '-').slice(0, 15);
+    const filename = `diagnostic_${ts}.md`;
+
+    let md = '# Compliance Diagnostics Report\n\n';
+    md += `**File ID:** #${summary.file_id}  `;
+    md += `**Checked at:** ${new Date(summary.checked_at).toLocaleString()}\n\n`;
+
+    md += '## Summary\n\n';
+    md += '| Status | Total Violations |\n';
+    md += '|--------|------------------|\n';
+    md += `| ${summary.status} | ${summary.total_violations} |\n\n`;
+
+    md += '## Rule Breakdown\n\n';
+    md += '| Rule | Status | Violations |\n';
+    md += '|------|--------|------------|\n';
+    Object.entries(ruleBreakdown).forEach(([_id, data]) => {
+      const r = data as any;
+      md += `| ${r.name || '-'} | ${r.status} | ${r.count ?? 0} |\n`;
+    });
+
+    md += '\n## Detailed Violations\n\n';
+    md += '| Rule | Severity | Description | Value | Timestamp |\n';
+    md += '|------|----------|-------------|-------|-----------|\n';
+    violations.forEach(v => {
+      const val = v.value != null ? v.value.toFixed(4) : '—';
+      const t = v.timestamp != null ? `${v.timestamp.toFixed(2)}s` : '—';
+      md += `| ${v.rule_id} | ${v.severity} | ${v.description} | ${val} | ${t} |\n`;
+    });
+
+    const blob = new Blob([md], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h2 className="text-3xl font-bold text-white tracking-tight">Compliance Diagnostics</h2>
-        </div>
-        <div className="text-slate-400 text-sm">
-          Checked at: {new Date(summary.checked_at).toLocaleString()}
+        <h2 className="text-3xl font-bold text-white tracking-tight">Compliance Diagnostics</h2>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={handleDownloadMarkdown}
+            className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm font-medium bg-transparent border-none p-0 cursor-pointer"
+          >
+            <Download size={16} />
+            Download Report
+          </button>
+          <div className="text-slate-400 text-sm">
+            Checked at: {new Date(summary.checked_at).toLocaleString()}
+          </div>
         </div>
       </div>
 
