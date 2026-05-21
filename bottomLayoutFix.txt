@@ -1,0 +1,30 @@
+1 # Plan: Fix Bottom Navigation Overlap                                                                                     2
+   3 ## Context
+   4 The bottom navigation buttons (Dashboard, Analysis, Upload) are currently im
+     plemented as a `fixed` element in `App.tsx`. Because they are removed from t
+     he document flow, they overlap the bottom of page content when the window is
+      small or the page is long.
+   5
+   6 ## Implementation Approach
+   7
+   8 ### 1. Restructure Navigation in `Layout.tsx`
+   9 I will move the navigation buttons from `App.tsx` to `Layout.tsx` and implem
+     ent a "safe zone" at the bottom of every page.
+  10
+  11 - **File**: `frontend/src/components/Layout.tsx`
+  12     - Update `LayoutProps` to include `page: 'dashboard' | 'rules' | 'upload
+     ' | 'analysis' | 'admin' | 'diagnostics'`.
+  13     - Update the `setPage` type signature in `LayoutProps` to include `'diag
+     nostics'`.
+  14     - Add `className="pb-24"` to the `<main>` tag. This ensures that any con
+     tent can be scrolled fully into view without being obscured by the floating
+     footer.
+  15     - Implement a fixed footer:
+  16         - Outer container: `fixed bottom-0 left-0 right-0 pointer-events-non
+     e`.
+  17         - Inner container: `max-w-6xl mx-auto px-8 pb-8 flex justify-end gap
+     -4 pointer-events-auto`.
+  18         - Move the buttons (Dashboard, Analysis, Upload) into this footer.
+  19         - Use the `page` prop to apply the active state styling: `${page ===
+      '...' ? 'bg-white/20 text-white' : 'text-slate-400 hover:text-white'}`.
+  20  

@@ -1,0 +1,24 @@
+1. Make sure all channels are logical that I am looking at i.e. a sensor fault that would cause a sensor to show a maximum translation that would show as a real number but, not an actual true value
+
+2. Make sure that Engine Speed is not going above the TA2 engine speed limit of 6800 for more than .25 seconds and that there was not advantage during that time. Advantage meaning that speed was increasing more than 5-6 mph during that event time
+Need to make sure that it was also not a traction event for the tire as this will overshoot the limiter due to inertia
+
+3.Check the Fuel Close Loop Trims 1/2 to see if they are close to the trim limits for the firmware (20 and -20 are the highest values for control in the PID system)
+If these channels are too high, it is worth looking at the cars fuel pressure to see if it is steady or fluctuating. This could cause this problem BUT could be a sign that the car is running a different type of fuel
+
+4.Make sure that the Exhaust Lambda Bank 1/2 are within the .88-.89 during wide open throttle operation, the cars should all fall in this range if not something could be off in the fuel or air system
+
+5. Next to check is the air flowing into the manifold through the Manifold Pressure. It is critical that a math channel be used to calculate the ratio of ambient to the actual manifold pressure. The ECU samples a ‘key on’ Ambient Pressure channel. For example, 98 kPa (should ideally be like 100-101 but a lot of sensors are different right out of the box). With the restrictor in the intake, wide open throttle manifold pressure is 90-91 kPa. This gives us a ratio that can be compared car to car that is a true comparison.
+From here I look to see if in the data if any of the cars have a much higher or lower ratio compared to others. You will see that most of the cars form a nice valley when at full power, see below (only compare when at full power because of transient events the resistor does not work as well to reduce as flow)
+
+6. Along with Manifold pressure I like to check the ram effect at high speed and compare that from car to car, this seems to show that some teams have very good designs for the air intake of their cars. This would be Manifold pressure compared to the vehicle speed or GPS speed
+
+7. We have recently wanted to look at how much fuel each of the cars has been consuming in the lap-to-lap basis. Although, a slower driver will use less gas in a lap than a fast driver. I decided that if we only look at the wide-open throttle parts of the track (straights really) then we can have a good comparison for the cars fuel used in those sections. Ideally the ECU should be controlling all the cars so that they use roughly the same amount of fuel during WOT events UNLESS something has been changed to the system that the ECU cannot control i.e. the fuel sample
+
+8. With the integration of the GPS speed with the GPS kit system, it has been nice to evaluate the top speed of the cars and compare them to each other. This must be taken with a ratio to how fast the car comes out of the previous coroner i.e. one car gets to a higher top speed but came out of the corner higher than the compare car
+
+9. ECU Battery voltage has been a concern with the fluctuation of the voltage. We have not determined what could be causing this but, this could be something that the AI could ‘solve’ or piece together by making a direct correlation with the data set. The ECU should look like this and be an almost constant output
+This range is roughly 13.4-13.8
+Not this 11-13.5 volts
+We have made a correlation that the throttle/load of the engine reduces the output voltage, not sure where we can look further for this in the data
+The last two things I look at is the air temperature sensor to make sure that it does not have wild fluctuations because this will directly effect the fueling to the engine and the fuel pressure vs engine speed. If the fuel pressure is not staying constant throughout the entire engine speed range, this could mean a fuel pump is going out or the filter is jammed. Either way, it needs to be fixed or the car will be down on power.

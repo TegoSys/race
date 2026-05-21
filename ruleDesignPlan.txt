@@ -1,0 +1,18 @@
+1. Backend Requirements (Ready to implement)                                                                          
+  - Rules Engine: I have identified the 10 specific diagnostic rules (e.g., RPM Limit, AFR, Electrical Stability) that
+  need to be implemented.
+  - Data Pipeline: I've determined that the DataProcessor service can be extended to handle the necessary calculations
+  (like Wide Open Throttle segments and pressure ratios).
+  - Storage: I have a proposed database schema involving two new tables—rule_check_summaries and rule_violations—to
+  store the results and individual event logs.
+
+  2. Frontend Requirements (Ready to implement)
+
+  - UI Entry Point: I've located the Analysis page (Analysis.tsx) where the "Check Diagnostics" button will be added
+  next to the "File Summary" button.
+  - New Page: I've mapped out the "Check Diagnostics" page, which will include:
+    - File selection from the database.
+    - A downsample factor input (1-200, default 100).
+    - A "Run Check" trigger.
+    - Summary and detailed event tables following the "Apple Liquid Glass" theme.
+  - Routing: I've identified the routing logic in App.tsx that needs to be updated to include the new diagnostics view.

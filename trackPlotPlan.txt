@@ -1,0 +1,94 @@
+I have implemented the race track plot feature.
+
+  Changes made:                                                                                                           1. Created frontend/src/utils/gpsUtils.ts: Implemented the Equirectangular projection math to convert GPS coordinates
+  into meters relative to a reference point.                                                                              2. Created frontend/src/components/TrackPlot.tsx:
+    - Added a new component that fetches GPS data independently.
+    - Implemented data cleaning to remove zero values (signal loss) and distance-based outlier spikes.
+    - Uses the first valid point as the reference origin for the plot.
+    - Renders the path using a recharts ScatterChart with a line connecting the points.
+  3. Updated frontend/src/pages/Analysis.tsx:
+    - Added trackPlot to the activeTab state.
+    - Added a "Track Plot" button to the navigation row, which is enabled only when a file is selected and GPS columns
+  are present.
+    - Integrated the TrackPlot component into the dashboard view.
+
+  The feature is now ready for verification. You can select a file with GPS data and click "Track Plot" to view the
+  vehicle's path.
+
+
+Plan: Add Race Track Plot to Analysis Page
+
+ Context
+
+ The goal is to add a visualization of the race track on the Analysis page. This involves projecting GPS coordinates
+ (Latitude/Longitude) onto a 2D plane using an equirectangular mapping and rendering the resulting X,Y plot. This
+ allows users to see the physical path of the vehicle.
+
+ Implementation Approach
+
+ 1. GPS Projection Utility
+
+ Create a new utility file frontend/src/utils/gpsUtils.ts to implement the math from manualTurnMarking.py.
+ - Constants: Earth Radius $R = 6,371,000$ meters.
+ - Logic:
+   - Convert degrees to radians.
+   - $x = R \cdot (\text{lon}{rad} - \text{refLon}{rad}) \cdot \cos(\text{refLat}_{rad})$
+   - $y = R \cdot (\text{lat}{rad} - \text{refLat}{rad})$
+ - Function: projectGPS(lat, lon, refLat, refLon) returning { x, y }.
+
+ 2. TrackPlot Component
+
+ Create a new component frontend/src/components/TrackPlot.tsx to handle the visualization.
+ - Data Fetching: The component will fetch data independently from /files/data using fileId and explicitly requesting
+ GPS Latitude and GPS Longitude.
+ - Data Cleaning:
+   - Zero Removal: Filter out any points where latitude or longitude are $0$ (signal loss).
+   - Reference Point: The first valid (non-zero) point will be used as the reference origin ($\text{lat}_0,
+ \text{lon}_0$).
+   - Outlier Removal: Implement a filter to remove GPS spikes/outliers (e.g., based on distance from previous point or
+ simple IQR) to prevent graph distortion.
+ - Projection: It will map all remaining points using projectGPS.
+ - Visualization: Use recharts ScatterChart.
+   - Points will be small to create a continuous line.
+   - Axes will be labeled "Meters (X)" and "Meters (Y)".
+   - A custom tooltip will show original GPS coordinates.
+ - Styling: Follow the "Apple Liquid Glass" aesthetic (translucent backgrounds, subtle borders).
+
+ 3. Analysis Page Integration
+
+ Modify frontend/src/pages/Analysis.tsx:
+ - State: Add 'trackPlot' to the activeTab state union.
+ - Activation Logic: Create a derived boolean hasGPSColumns that checks if availableColumns contains both 'GPS
+ Latitude' and 'GPS Longitude'.
+ - UI:
+   - Add a "Track Plot" button to the button row (next to "Check Diagnostics").
+   - Button enabled if selectedFile exists and hasGPSColumns is true.
+     │ - UI:                                                                                                          │
+     │   - Add a "Track Plot" button to the button row (next to "Check Diagnostics").                                 │
+     │   - Button enabled if selectedFile exists and hasGPSColumns is true.                                           │
+     │   - onClick sets activeTab to 'trackPlot'.                                                                     │
+     │ - Rendering: Add a conditional block to render <TrackPlot fileId={selectedFile} /> when activeTab ===          │
+     │ 'trackPlot'.                                                                                                   │
+     │                                                                                                                │
+     │ Critical Files                                                                                                 │
+     │                                                                                                                │
+     │ - frontend/src/pages/Analysis.tsx (Modify)                                                                     │
+     │ - frontend/src/utils/gpsUtils.ts (Create)                                                                      │
+     │ - frontend/src/components/TrackPlot.tsx (Create)                                                               │
+     │                                                                                                                │
+     │ Verification Plan                                                                                              │
+     │                                                                                                                │
+     │ 1. Disabled State: Verify "Track Plot" button is disabled for files without GPS columns.                       │
+     │ 2. Enabled State: Verify "Track Plot" button is enabled for files with GPS columns.                            │
+     │ 3. Tab Switching: Verify that clicking the button switches the view to the plot and back to 'Chart             │
+     │ Analysis'/'File Summary'.                                                                                      │
+     │ 4. Data Isolation: Verify that switching to the Track Plot does not change the selectedColumns used for the    │
+     │ time-series charts.                                                                                            │
+     │ 5. Visual Check: Verify that the resulting plot resembles a race track and not a scatter of points.            │
+     │ 6. Coordinate Scaling: Verify that the X and Y axes are in meters and maintain a roughly 1:1 aspect ratio.     │
+     ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+> please confirm the plan includes plotting gps coordinates only and no turn markers or start/finish line indicators      are being displayed in this version                                                                                   
+● I confirm that the plan is strictly limited to plotting the vehicle's GPS coordinates. There are no turn markers,
+  start/finish line indicators, or other track overlays included in this version. The visualization will be a pure X,Y
+  plot of the path taken by the car.                                                                                  

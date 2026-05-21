@@ -1,0 +1,14 @@
+# Current (Broken)
+  idx = over_limit.index[0]
+  start_idx = max(0, idx - 1)
+  end_idx = min(len(df)-1, idx + 1)
+  speed_diff = df[col_spd].iloc[end_idx] - df[col_spd].iloc[start_idx]
+
+  # Fixed
+  timestamp = over_limit.index[0]
+  idx_pos = df.index.get_loc(timestamp)
+  start_idx = max(0, idx_pos - 1)
+  end_idx = min(len(df)-1, idx_pos + 1)
+  speed_diff = df[col_spd].iloc[end_idx] - df[col_spd].iloc[start_idx]
+
+  I will now apply this fix to backend/app/services/rules_engine.py.

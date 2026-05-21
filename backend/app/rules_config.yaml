@@ -1,0 +1,36 @@
+air_temp:
+  max_change_c: 10
+  window_seconds: 5
+battery_voltage:
+  target_low: 13.4
+  target_high: 13.8
+  fail_low: 11
+  sustain_samples: 5
+fuel_consumption:
+  excess_pct: 20
+fuel_pressure:
+  max_variation_pct: 15
+fuel_trim:
+  warn_limit: 15
+  fail_limit: 20
+  sustain_seconds: 15
+lambda_check:
+  target_low: 0.88
+  target_high: 0.89
+  warn_low: 0.85
+  warn_high: 0.92
+  fail_low: 0.8
+  fail_high: 0.95
+manifold_ratio:
+  deviation_pct: 15
+ram_effect:
+  min_speed: 100
+  deviation_pct: 20
+rev_limit:
+  max_rpm: 6800
+  max_duration_samples: 3
+  speed_advantage_mph: 5.5
+sensor_fault:
+  consecutive_samples: 10
+top_speed:
+  delta_mph: 5

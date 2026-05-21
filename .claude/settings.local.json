@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m venv venv)",
+      "Bash(./venv/Scripts/activate)",
+      "Bash(pip install *)",
+      "Bash(npm install *)",
+      "Bash(dir /s /b \"C:\\\\Users\\\\scott\\\\qwenRace\\\\rules_engine\" \"*.py\")",
+      "Bash(docker-compose up *)",
+      "Bash(.\\\\raceAgeEnv\\\\Scripts\\\\python -c \"from app.core.db import db; db.init_schema\\(\\); print\\('Schema initialized'\\)\")",
+      "Bash(./raceAgeEnv/Scripts/python -c \"from app.core.db import db; db.init_schema\\(\\); print\\('Schema initialized'\\)\")",
+      "Bash(./raceAgeEnv/Scripts/python *)",
+      "Bash(PGPASSWORD=password psql *)",
+      "Bash(cp \"C:/Users/scott/qwenRace/rules_engine/__init__.py\" \"C:/Users/scott/newRaceAgentRules/raceAgent/backend/app/services/rules_engine/__init__.py\")",
+      "Bash(cp \"C:/Users/scott/qwenRace/rules_engine/rules.py\" \"C:/Users/scott/newRaceAgentRules/raceAgent/backend/app/services/rules_engine/rules.py\")",
+      "Bash(cp \"C:/Users/scott/qwenRace/rules_engine/loader.py\" \"C:/Users/scott/newRaceAgentRules/raceAgent/backend/app/services/rules_engine/loader.py\")",
+      "Bash(cp \"C:/Users/scott/qwenRace/rules_engine/checker.py\" \"C:/Users/scott/newRaceAgentRules/raceAgent/backend/app/services/rules_engine/checker.py\")",
+      "Bash(cp \"C:/Users/scott/qwenRace/rules_engine/reporter.py\" \"C:/Users/scott/newRaceAgentRules/raceAgent/backend/app/services/rules_engine/reporter.py\")",
+      "Bash(.\\\\raceAgeEnv\\\\Scripts\\\\python -m pip install \"pyyaml>=6.0\")"
+    ]
+  }
+}

@@ -1,0 +1,57 @@
+Since you're looking for a quick "stop-gap" solution while you develop the Race Agent dashboard, we can implement a basic OAuth2 password flow using FastAPI's built-in security utilities.
+
+This approach is easy to swap out later for a professional service (like Auth0 or Clerk) because it follows the standard FastAPI security patterns.
+
+1. Create your Credentials File
+Create a file named users.json in your backend directory. For now, we will store the passwords in cleartext as requested.{
+  "scott": "race_password_123",
+  "admin": "supersecret"
+}
+
+import json
+from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from pydantic import BaseModel
+
+app = FastAPI()
+
+# This tells FastAPI where to look for the token
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+
+def load_db():
+    with open("users.json", "r") as f:
+        return json.load(f)
+
+@app.post("/login")
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    users_db = load_db()
+    password = users_db.get(form_data.username)
+    
+    if not password or form_data.password != password:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Returning the username as the token for temporary simplicity
+    return {"access_token": form_data.username, "token_type": "bearer"}
+
+@app.get("/data-overview")
+async def get_overview(token: str = Depends(oauth2_scheme)):
+    # This route is now protected
+    return {"message": f"Hello {token}, here is your telemetry data."}
+
+
+3. Frontend Integration (React/Vite)
+On your frontend (which looks like it's running on port 5174), you’ll need a simple state to handle the login.
+
+The Workflow:
+
+Create a LoginForm component that sends a POST request to /login.
+
+The request body must be multipart/form-data (per OAuth2 spec) containing username and password.
+
+Store the access_token in localStorage.
+
+Include the header Authorization: Bearer <token> in your subsequent calls to fetch the race data.

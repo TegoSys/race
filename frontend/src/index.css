@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+@theme {
+  --color-glass-bg: rgba(255, 255, 255, 0.1);
+  --color-glass-border: rgba(255, 255, 255, 0.2);
+  --backdrop-blur-glass: blur(12px);
+}
+
+@layer base {
+  body {
+    @apply bg-slate-900 text-white min-h-screen;
+  }
+}
+
+.glass-panel {
+  @apply bg-glass-bg backdrop-blur-glass border border-glass-border rounded-2xl shadow-xl;
+}

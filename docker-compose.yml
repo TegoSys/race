@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: race_agent_db_new
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: race_agent
+    ports:
+      - "5446:5432"
+    volumes:
+      - postgres_data_newRules:/var/lib/postgresql/data
+
+volumes:
+  postgres_data_newRules:

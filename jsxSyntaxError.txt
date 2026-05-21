@@ -1,0 +1,3 @@
+I have fixed the parse error in frontend\src\pages\DiagnosticsView.tsx. The issue was caused by attempting to type a
+  destructured variable (data: any) directly within the .map() argument, which is not valid TypeScript/JSX syntax. I've
+  updated the code to handle the type cast inside the map function body.  

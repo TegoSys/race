@@ -1,0 +1,53 @@
+ To integrate the "Save Plots as Image" functionality with the Track Plot, we need to extend the existing export logic
+  in Analysis.tsx to recognize and capture the TrackPlot component.
+                                                                                                                          Currently, the executeExport function uses dom-to-image-more to capture either the timeSeriesRef or histogramsRef.
+  Since the TrackPlot is a separate component, we need a way to reference its DOM element.                              
+  Proposed Technical Approach
+
+  1. Add a Reference: Create a trackPlotRef in Analysis.tsx and pass it to the TrackPlot component. I will need to wrap
+  TrackPlot in React.forwardRef so the parent can access its outer Card element.
+  2. Update Export Type:
+    - Update the exportSettings type to include 'trackPlot'.
+    - Update savePlot to automatically detect the current tab. If activeTab === 'trackPlot', it should set plotType:
+  'trackPlot'.
+  3. Extend the Modal: Add "Track Plot" as a radio option in the export modal, allowing users to save the map even if
+  they are currently looking at the time-series charts (provided a file with GPS data is selected).
+  4. Update Execution Logic: Modify executeExport to handle the trackPlot type by targeting the trackPlotRef.current.
+
+  Clarifying Questions
+
+  1. User Flow: When the user is in the trackPlot tab and clicks "Save Plots as Image," should it skip the modal and
+  save immediately, or should it still open the modal to confirm the filename?
+  2. Cross-Tab Saving: Should the user be able to save the Track Plot while they are still in the "Chart Analysis" tab?
+  (This would require the TrackPlot component to be rendered in the DOM but hidden, or for us to trigger a temporary
+  render/fetch to capture the image).
+  3. File Naming: Should the default filename for track exports be different (e.g., race-track-map-... instead of
+  race-analysis-...)?
+
+  Code Review: Current Implementation in Analysis.tsx
+
+  This is the logic we will be modifying:
+
+  // line 279: The current save trigger
+  const savePlot = () => {
+    setExportSettings({
+      filename: `race-analysis-${selectedFile || 'export'}`,
+      plotType: 'timeSeries' // <--- This needs to be dynamic based on activeTab
+    });
+    setIsExportModalOpen(true);
+  };
+
+  // line 287: The capture logic
+  const executeExport = async () => {
+    // ...
+    const targetElement = exportSettings.plotType === 'timeSeries'
+      ? timeSeriesRef.current
+      : histogramsRef.current; // <--- We need to add trackPlotRef here
+    // ...
+  }
+
+  Once you clarify the user flow and the cross-tab saving preference, I can provide the exact implementation.
+
+✻ Brewed for 6m 43s
+
+> 1. yes we would still open the modal and confirm the file name.  2. For now, the user would only save the track plot    when in the track plot tab, no cross tab saving.  3.  And file name would be different, race-track-map   

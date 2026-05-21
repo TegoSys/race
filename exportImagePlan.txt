@@ -1,0 +1,110 @@
+Proposed Changes
+
+     Frontend (React)
+
+     1. Simplify the Export Modal:
+       - Change the checkboxes to a single-select (radio buttons or a dropdown) to choose which plot to export.
+       - Keep the text input for the Filename.
+       - Keep the "Download" and "Cancel" buttons.
+     2. Update Export Logic (executeExport):
+       - Identify the target element based on the selection:
+           - If "Time Series" $\rightarrow$ use timeSeriesRef.current.
+         - If "Histograms" $\rightarrow$ use histogramsRef.current.
+       - Pass the target element directly to html2canvas without cloning.
+       - Trigger the download with the user-specified filename.
+     3. UI Feedback:
+       - Add a simple isExporting loading state to the Download button to prevent multiple clicks and signal that the
+     process is running.
+
+     Critical Files
+
+     - frontend/src/pages/Analysis.tsx: Update state, modal UI, and executeExport function.
+
+     Verification Plan
+
+     1. Single Plot Export:
+       - Select "Time Series" $\rightarrow$ Verify only the line chart is downloaded.
+       - Select "Histograms" $\rightarrow$ Verify only the bar charts are downloaded.
+     2. Filename Customization:
+       - Enter a custom filename $\rightarrow$ verify the saved file uses that name.
+     3. Loading State:
+       - Verify the button shows a loading state during the capture process.
+     4. Visual Quality:
+       - Check that the resulting PNG has the correct background and high resolution.
+
+● Update(frontend\src\pages\Analysis.tsx)
+  ⎿  Added 2 lines, removed 4 lines
+      172
+      173    // Export state
+      174    const [isExportModalOpen, setIsExportModalOpen] = useState(false);                                               175 +  const [isExporting, setIsExporting] = useState(false);
+      176    const [exportSettings, setExportSettings] = useState({                                                           177      filename: '',
+      177 -    plots: {
+      178 -      timeSeries: true,
+      179 -      histograms: true,
+      180 -    }
+      178 +    plotType: 'timeSeries', // 'timeSeries' or 'histograms'
+      179    });
+      180
+      181    const dashboardRef = useRef<HTMLDivElement>(null);
+
+● Update(frontend\src\pages\Analysis.tsx)
+  ⎿  Added 12 lines, removed 23 lines
+      256    const savePlot = () => {
+      257      setExportSettings({
+      258        filename: `race-analysis-${selectedFile || 'export'}`,                                                       259 -      plots: { timeSeries: true, histograms: true }
+      259 +      plotType: 'timeSeries'                                                                                       260      });
+      261      setIsExportModalOpen(true);
+      262    };
+      263
+      264    const executeExport = async () => {
+      265 +    setIsExporting(true);
+      266      try {
+      266 -      // Create a temporary container for the export
+      267 -      const container = document.createElement('div');
+      268 -      container.style.position = 'absolute';
+      269 -      container.style.left = '-9999px';
+      270 -      container.style.top = '0';
+      271 -      container.style.width = '1200px';
+      272 -      container.style.backgroundColor = '#0f172a';
+      273 -      container.style.padding = '40px';
+      274 -      container.style.display = 'flex';
+      275 -      container.style.flexDirection = 'column';
+      276 -      container.style.gap = '40px';
+      267 +      const targetElement = exportSettings.plotType === 'timeSeries'
+      268 +        ? timeSeriesRef.current
+      269 +        : histogramsRef.current;
+      270
+      278 -      if (exportSettings.plots.timeSeries && timeSeriesRef.current) {
+      279 -        container.appendChild(timeSeriesRef.current.cloneNode(true));
+      271 +      if (!targetElement) {
+      272 +        console.error('Target element for export not found');
+      273 +        return;
+      274        }
+      281 -      if (exportSettings.plots.histograms && histogramsRef.current) {
+      282 -        container.appendChild(histogramsRef.current.cloneNode(true));
+      283 -      }
+      275
+      285 -      document.body.appendChild(container);
+      286 -
+      287 -      const canvas = await html2canvas(container, {
+      276 +      const canvas = await html2canvas(targetElement, {
+      277          backgroundColor: '#0f172a',
+      278          logging: false,
+      290 -        scale: 2, // Higher quality
+      279 +        scale: 2,
+      280        });
+      281
+      293 -      document.body.removeChild(container);
+      294 -
+      282        const image = canvas.toDataURL('image/png');
+      283        const link = document.createElement('a');
+      284        link.download = `${exportSettings.filename}.png`;
+     ...
+      288        setIsExportModalOpen(false);
+      289      } catch (e) {
+      290        console.error('Export failed', e);
+      291 +    } finally {
+      292 +      setIsExporting(false);
+      293      }
+      294    };
+      295

@@ -1,0 +1,36 @@
+To limit the number of points and prevent the plot from becoming "blurry" (which happens when multiple laps are
+  overlaid), we need to decide how to select which data to keep.
+
+  Since we are currently only fetching GPS Latitude and GPS Longitude, the data is just a linear stream of coordinates.   We don't have a "Lap Number" column to easily say "only plot the last 3 laps."
+                                                                                                                          Clarifying Questions:
+  1. How should we identify the laps to limit?
+    - Should we just take a hard limit on the total points (e.g., the first 2,000 points after cleaning)?
+    - Or should we fetch an additional column (like Lap or Distance) from the backend to allow us to filter by the most
+  recent laps?
+  2. If we use a hard limit, do you prefer the first $N$ points or the last $N$ points?
+
+  Proposed Code Change in TrackPlot.tsx:
+
+  If we go with a hard limit on total points, the change would occur in the useEffect after the spike removal but before
+   projection.
+
+  Here is the snippet I would modify (around line 83):
+
+  // ... after spike removal ...
+  // 2. Outlier Removal
+  const cleanedPoints: GPSPoint[] = [];
+  // ... (current spike removal loop) ...
+
+  // NEW: Limit total points to prevent blurriness and performance issues
+  const MAX_POINTS = 2000; // Example limit
+  const limitedPoints = cleanedPoints.slice(0, MAX_POINTS);
+
+  // 3. Projection relative to the first valid point
+  const origin = limitedPoints[0];
+  const projectedData = limitedPoints.map(pt => {
+    const { x, y } = projectGPS(pt.lat, pt.lon, origin.lat, origin.lon);
+    return { x, y, lat: pt.lat, lon: pt.lon };
+  });
+
+  If you would prefer to filter by actual laps, let me know, and I can check if the backend provides a Lap column we can
+   add to the request.

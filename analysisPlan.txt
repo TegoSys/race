@@ -1,0 +1,89 @@
+ C:\Users\scott.claude\plans\let-s-resume-building-the-hazy-spindle.md
+
+     Implementation Plan: Data File Visualization & Analysis
+
+     Context
+     The goal is to allow users to select a previously uploaded data file from the backend, visualize specific columns       as time series and histograms, downsample large datasets for performance, and view the data in a scrollable table.
+     Additionally, users should be able to view high-level summary data, including metadata, channel statistics, and         correlation results. This must be integrated into the existing React PWA using the "Apple Liquid Glass" theme.
+
+     Proposed Changes
+✻ Cogitated for 20m 53s
+
+> /plan
+  ⎿  Current Plan
+     C:\Users\scott.claude\plans\let-s-resume-building-the-hazy-spindle.md
+
+     Implementation Plan: Data File Visualization & Analysis
+
+     Context
+
+     The goal is to allow users to select a previously uploaded data file from the backend, visualize specific columns as time series and histograms, downsample large datasets for performance, and view the data in a scrollable table. Additionally, users should be able to view high-level summary data, including
+     metadata, channel statistics, and correlation results. This must be integrated into the existing React PWA using the "Apple Liquid Glass" theme.
+
+     Proposed Changes
+
+     Backend (FastAPI)
+
+     1. File Discovery:
+       - Add GET /files/list to list available data files.
+       - Add GET /files/{file_id}/columns to retrieve the column names for a given file.
+     2. Data Retrieval & Downsampling:
+       - Add GET /files/data which accepts file_id, columns (list), and downsample_factor (integer).
+       - Implement DataProcessor.get_downsampled_data in backend/app/services/processor.py.
+       - Optimization: Use pd.read_csv(..., usecols=columns, skiprows=...) to minimize memory usage. For MoTeC files, skiprows should be 18.
+       - Apply downsampling via slicing: df.iloc[::downsample_factor].
+     3. Summary & Insights:
+       - Add GET /files/{file_id}/summary to aggregate and return:
+           - metadata_json from race_files.
+         - Channel statistics from channel_stats.
+         - Correlation results from analysis_results.
+
+     Frontend (React)
+
+     1. Dependencies:
+       - Install recharts for visualization.
+       - Install html2canvas for plot exporting.
+     2. UI Components (Liquid Glass Theme):
+       - Use the .glass-panel class for all containers.
+       - Analysis View:
+           - File Selector: A glass-styled dropdown to select the file.
+         - Column Selector: A multi-select list to toggle which channels to visualize.
+         - Downsampling Control: A numeric input or slider for the downsample_factor.
+         - Plots: LineChart (Time Series) and BarChart (Histograms) from Recharts.
+         - Data Table: A scrollable table for raw/downsampled values.
+         - Export Button: A button using html2canvas to save the dashboard as a PNG.
+       - Summary View:
+           - Metadata Grid: A glass-panel grid displaying file and race metadata.
+         - Stats Table: A table of channel statistics with a search/filter and favoriting capability.
+         - Correlation Insights: A visual list of correlations with strength indicators.
+     3. Page Structure:
+       - Implement a tab-based navigation in Analysis.tsx to switch between "Chart Analysis" and "File Summary".
+
+     Critical Files
+
+     - backend/app/main.py: Endpoint definitions.
+     - backend/app/services/processor.py: Downsampling and retrieval logic.
+     - frontend/src/index.css: Theme definitions.
+     - frontend/src/pages/Analysis.tsx: Main visualization and summary logic.
+
+     Verification Plan
+
+     1. Backend Tests:
+       - Verify /files/list and /files/{file_id}/columns return correct data.
+       - Verify /files/data returns expected rows based on downsample factor.
+       - Verify /files/{file_id}/summary returns combined metadata, stats, and correlations.
+     2. Frontend Tests:
+       - Verify tab switching between Analysis and Summary.
+       - Verify that selecting a file populates both views.
+       - Test the stats table filtering and favoriting.
+       - Confirm that correlations are visualized with strength indicators.
+       - Verify the l-save plot export works.
+       - Ensure the Liquid Glass aesthetic is consistent across both views.
+
+     "/plan open" to edit this plan in Notepad
+
+  4 tasks (3 done, 1 in progress, 0 open)
+  √ Backend: Implement /files/{file_id}/summary endpoint
+  ■ Frontend: Implement Summary View and Tabbed Navigation
+  √ Implement Tabbed Navigation in Analysis.tsx
+  √ Implement Summary View in Analysis.tsx

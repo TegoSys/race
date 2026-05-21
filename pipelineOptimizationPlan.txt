@@ -1,0 +1,12 @@
+ Proposed Plan
+
+  I will now create a plan to optimize this pipeline. The goal is to ensure that statistics and correlations are
+  generated reliably, even for very large files.
+
+  I will focus on:
+  1. Reducing Redundant I/O: Avoiding reading the same large file multiple times.
+  2. Memory Optimization: implementing chunked reading or more efficient pandas operations.
+  3. Asynchronous Processing: Moving these heavy calculations to a background task so the upload request doesn't
+  timeout.
+
+  I'll start by drafting the formal plan.

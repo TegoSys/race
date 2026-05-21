@@ -1,0 +1,59 @@
+Get an error when trying to access the vite server through an ngrok tunnel  The error you're seeing is a Mixed Content block. Since you are accessing the Vite frontend via a secure ngrok tunnel (https), 
+the browser forbids it from making "insecure" requests to an http backend (your local IP).
+
+1.The Vite Proxy Approach
+If you only want to manage one ngrok tunnel, you can tunnel Vite and 
+have Vite "proxy" the API requests to FastAPI internally. Since the browser only "talks" to the ngrok URL, it stays in a secure context.
+
+
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    allowedHosts: ['all'], // Required to allow ngrok to connect to Vite
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8001',
+        changeOrigin: true,
+        // This removes '/api' from the path before sending to FastAPI
+        // e.g., /api/login becomes /login
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+    },
+  },
+})
+
+
+2.Update React Calls:
+Instead of calling http://192.168.1.112:8001/login, change your code to call a relative path:
+
+
+// This will now be handled by the Vite server and passed to FastAPI
+
+
+// Instead of http://192.168.1.112:8001/login
+const response = await fetch('/api/login', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    // Always include this for ngrok compatibility
+    'ngrok-skip-browser-warning': 'true' 
+  },
+  body: JSON.stringify(credentials)
+});
+
+
+3. Update FastAPI CORS
+Since the request is being proxied by Vite, FastAPI will see the request coming from whichever URL you are using to view the site.
+
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://hang-postparoxysmal-beau.ngrok-free.dev", 
+]
+
+update .env file for vite
+
+VITE_API_BASE_URL=/api
