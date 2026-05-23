@@ -8,6 +8,7 @@ import {
 import domtoImage from 'dom-to-image-more';
 import { Star, Download, X } from 'lucide-react';
 import { Card } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
 import { TrackPlot } from '../components/TrackPlot';
 import { API_BASE_URL } from '../config';
 
@@ -281,6 +282,8 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
     );
   };
 
+  const clearAllColumns = () => setSelectedColumns([]);
+
   const savePlot = () => {
     setExportSettings({
       filename: `race-analysis-${selectedFile || 'export'}`,
@@ -367,7 +370,17 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm text-slate-400">Select Columns</label>
+            <div className="flex justify-between items-center">
+              <label className="text-sm text-slate-400">Select Columns</label>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearAllColumns}
+                disabled={selectedColumns.length === 0}
+              >
+                Reset
+              </Button>
+            </div>
             <div className="h-48 overflow-y-auto border border-white/10 rounded-lg p-2 space-y-1 bg-slate-800/30">
               {availableColumns.map(col => (
                 <label key={col} className="flex items-center gap-2 p-1 hover:bg-white/5 rounded cursor-pointer group">
