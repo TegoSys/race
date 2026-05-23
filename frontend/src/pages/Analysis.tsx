@@ -413,13 +413,15 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
             />
           </div>
 
-          <button
-            onClick={savePlot}
-            disabled={data.length === 0}
-            className="w-full py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 text-white rounded-lg transition-colors font-medium"
-          >
-            Save Plots as Image
-          </button>
+          <div className="flex justify-center">
+            <button
+              onClick={savePlot}
+              disabled={data.length === 0}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 text-white rounded-lg transition-colors font-medium"
+            >
+              Save Plots
+            </button>
+          </div>
         </Card>
 
         {/* Export Modal */}
