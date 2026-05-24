@@ -61,7 +61,9 @@ const SummaryView = ({ summaryData, fileId }: { summaryData: any, fileId: string
           <Card variant="glass" className="p-6">
             <h3 className="text-lg font-medium text-white mb-4">File Metadata</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              {Object.entries(parsedMeta || {}).map(([key, value]) => (
+              {Object.entries(parsedMeta || {})
+                .filter(([key]) => !key.toLowerCase().includes('beacon markers'))
+                .map(([key, value]) => (
                 <div key={key} className="p-3 bg-white/5 rounded-lg border border-white/10">
                   <div className="text-xs text-slate-400 uppercase font-semibold">{key.replace('_', ' ')}</div>
                   <div className="text-white font-medium">{String(value)}</div>
@@ -70,7 +72,7 @@ const SummaryView = ({ summaryData, fileId }: { summaryData: any, fileId: string
             </div>
           </Card>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 gap-6">
             {/* Stats Table */}
             <Card variant="glass" className="p-6">
               <div className="flex flex-wrap flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
@@ -371,7 +373,7 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
 
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <label className="text-sm text-slate-400">Select Columns</label>
+              <label className="text-sm text-emerald-400">Select Channels</label>
               <Button
                 variant="outline"
                 size="sm"
@@ -414,13 +416,14 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
           </div>
 
           <div className="flex justify-center">
-            <button
+            <Button
+              variant="outline"
+              size="sm"
               onClick={savePlot}
               disabled={data.length === 0}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 text-white rounded-lg transition-colors font-medium"
             >
               Save Plots
-            </button>
+            </Button>
           </div>
         </Card>
 
