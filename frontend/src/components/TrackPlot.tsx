@@ -41,17 +41,31 @@ export const TrackPlot = ({ fileId }: { fileId: string }) => {
 
         const rawData = res.data as any[];
 
-        // 1. Filter out zeros (signal loss) and apply basic range filter to remove massive outliers
+        // 1. Collect non-zero GPS values and compute medians for data-driven filtering
+        const lats = rawData.map(r => r['GPS Latitude'])
+          .filter(v => v !== 0 && v != null && !isNaN(v))
+          .sort((a, b) => a - b);
+        const lons = rawData.map(r => r['GPS Longitude'])
+          .filter(v => v !== 0 && v != null && !isNaN(v))
+          .sort((a, b) => a - b);
+
+        if (lats.length === 0 || lons.length === 0) {
+          throw new Error('No valid GPS coordinates found for this file.');
+        }
+
+        const medianLat = lats[Math.floor(lats.length / 2)];
+        const medianLon = lons[Math.floor(lons.length / 2)];
+
+        // 2. Filter out zeros, nulls, and points outside a tight band around the medians
+        const latTolerance = 0.05; // ~5.5km latitude tolerance
+        const lonTolerance = 0.05;
         const validPoints = rawData.filter(row => {
           const lat = row['GPS Latitude'];
           const lon = row['GPS Longitude'];
 
-          // Basic validity check
           if (lat === 0 || lon === 0 || lat === null || lon === null) return false;
-
-          // Remove obvious GPS spikes by filtering for a reasonable range
-          // (e.g., based on user feedback for the current track)
-          if (lat < 34.0 || lat > 34.5) return false;
+          if (Math.abs(lat - medianLat) > latTolerance) return false;
+          if (Math.abs(lon - medianLon) > lonTolerance) return false;
 
           return true;
         }).map(row => ({
