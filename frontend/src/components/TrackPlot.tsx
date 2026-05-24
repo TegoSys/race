@@ -31,6 +31,14 @@ export const TrackPlot = ({ fileId }: { fileId: string }) => {
       setLoading(true);
       setError(null);
       try {
+        // Fetch summary to extract venue name from metadata
+        const summaryRes = await apiClient.get(`/files/${fileId}/summary`);
+        const meta = summaryRes.data?.metadata;
+        const parsedMeta = typeof meta === 'string' ? JSON.parse(meta) : meta;
+        const venue = parsedMeta?.Venue || parsedMeta?.venue || '';
+        const parsedVenue = venue.split(',')[0].replace(/"/g, '').trim() || 'Race Track';
+        setVenueName(parsedVenue);
+
         // We explicitly request the GPS columns
         const res = await apiClient.get('/files/data', {
           params: {
@@ -168,7 +176,7 @@ export const TrackPlot = ({ fileId }: { fileId: string }) => {
   return (
     <Card variant="glass" className="p-6 h-full flex flex-col">
       <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-medium text-white">Race Track Path</h3>
+        <h3 className="text-lg font-medium text-white">{venueName}</h3>
         <span className="text-xs text-slate-400 font-mono">Units: Meters</span>
       </div>
       <div className="flex-1 w-full max-w-[800px] mx-auto h-[600px]">
