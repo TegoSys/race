@@ -43,7 +43,12 @@ const SummaryView = ({ summaryData, fileId }: { summaryData: any, fileId: string
     );
   };
 
-  const filteredStats = stats?.filter((s: any) => {
+  const shiftedStats = (stats || []).map((s: any, idx: number) => ({
+   ...s,
+   unit: stats[idx + 1]?.unit ?? s.unit,
+  }));
+
+  const filteredStats = shiftedStats?.filter((s: any) => {
     const matchesSearch = s.channel_name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesFavorite = !showFavoritesOnly || favoriteChannels.includes(s.channel_name);
     return matchesSearch && matchesFavorite;
