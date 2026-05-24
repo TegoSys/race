@@ -354,7 +354,7 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Configuration Panel */}
-        <Card variant="glass" className="p-6 space-y-6">
+        <Card variant="glass" className="p-6 space-y-6 self-start">
           <h2 className="text-xl font-semibold text-white">Analysis Setup</h2>
 
           <div className="space-y-2">
@@ -381,7 +381,7 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
                 Reset
               </Button>
             </div>
-            <div className="h-48 overflow-y-auto border border-white/10 rounded-lg p-2 space-y-1 bg-slate-800/30">
+            <div className="h-120 overflow-y-auto border border-white/10 rounded-lg p-2 space-y-1 bg-slate-800/30">
               {availableColumns.map(col => (
                 <label key={col} className="flex items-center gap-2 p-1 hover:bg-white/5 rounded cursor-pointer group">
                   <input
