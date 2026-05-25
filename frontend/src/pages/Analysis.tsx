@@ -589,20 +589,29 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
                         <h3 className="text-lg font-medium text-white mb-4">Time Series</h3>
                         <div className="h-80 w-full">
                           <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                            <LineChart data={data}>
+                            <LineChart data={data} margin={{ bottom: 20 }}>
                               <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
                               <XAxis
   dataKey="index"
   stroke="#94a3b8"
   fontSize={10}
-  tickFormatter={(val) => `S${val}`}
+  name="Time (s)"
+  tickFormatter={(val) => (val / 100).toFixed(1)}
+  label={{
+    value: 'Time (s)',
+    position: 'insideBottom',
+    offset: -7,
+    dx: 280,
+    fill: '#ffffff',
+    fontSize: 11
+  }}
 />
                               <YAxis stroke="#94a3b8" fontSize={12} />
                               <Tooltip
                                 contentStyle={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }}
                                 itemStyle={{ color: '#fff' }}
                               />
-                              <Legend />
+                              <Legend wrapperStyle={{ marginTop: '21px' }} />
                               {selectedColumns.map((col, idx) => (
                                 <Line
                                   key={col}
