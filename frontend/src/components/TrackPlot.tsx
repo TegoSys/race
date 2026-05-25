@@ -25,6 +25,7 @@ export const TrackPlot = ({ fileId }: { fileId: string }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [venueName, setVenueName] = useState<string>('Race Track');
+  const [driverName, setDriverName] = useState<string>('');
 
   useEffect(() => {
     const fetchGPSData = async () => {
@@ -38,6 +39,10 @@ export const TrackPlot = ({ fileId }: { fileId: string }) => {
         const venue = parsedMeta?.Venue || parsedMeta?.venue || '';
         const parsedVenue = venue.split(',')[0].replace(/"/g, '').trim() || 'Race Track';
         setVenueName(parsedVenue);
+
+        const driver = parsedMeta?.Driver || parsedMeta?.driver || '';
+        const parsedDriver = driver.split(',')[0].replace(/"/g, '').trim() || '';
+        setDriverName(parsedDriver);
 
         // We explicitly request the GPS columns
         const res = await apiClient.get('/files/data', {
@@ -177,6 +182,7 @@ export const TrackPlot = ({ fileId }: { fileId: string }) => {
     <Card variant="glass" className="p-6 h-full flex flex-col">
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-medium text-white">{venueName}</h3>
+        {driverName && <span className="text-sm text-slate-300">{driverName}</span>}
         <span className="text-xs text-slate-400 font-mono">Units: Meters</span>
       </div>
       <div className="flex-1 w-full max-w-[800px] mx-auto h-[600px]">

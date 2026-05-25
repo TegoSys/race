@@ -31,6 +31,8 @@ export const DiagnosticsView = ({ fileId }: { fileId: string | null }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pageSize, setPageSize] = useState<number | 'All'>(5);
+  const [venueName, setVenueName] = useState<string>('');
+  const [driverName, setDriverName] = useState<string>('');
 
   useEffect(() => {
     if (!fileId) return;
@@ -38,7 +40,17 @@ export const DiagnosticsView = ({ fileId }: { fileId: string | null }) => {
     setError(null);
     const controller = new AbortController();
     apiClient.get<DiagnosticsData>(`/files/${fileId}/rules`, { signal: controller.signal })
-      .then(res => {
+      .then(async res => {
+        // Fetch summary to extract venue/driver from metadata
+        try {
+          const summaryRes = await apiClient.get(`/files/${fileId}/summary`, { signal: controller.signal });
+          const meta = summaryRes.data?.metadata;
+          const parsedMeta = typeof meta === 'string' ? JSON.parse(meta) : meta;
+          const venue = parsedMeta?.Venue || parsedMeta?.venue || '';
+          setVenueName(venue.split(',')[0].replace(/"/g, '').trim() || '');
+          const driver = parsedMeta?.Driver || parsedMeta?.driver || '';
+          setDriverName(driver.split(',')[0].replace(/"/g, '').trim() || '');
+        } catch (_) { /* non-critical, continue without venue/driver */ }
         setData(res.data);
         setIsLoading(false);
       })
@@ -117,6 +129,8 @@ export const DiagnosticsView = ({ fileId }: { fileId: string | null }) => {
 
     let md = '# Compliance Diagnostics Report\n\n';
     md += `**File ID:** #${summary.file_id}  `;
+    md += venueName ? `**Race:** ${venueName}  ` : '';
+    md += driverName ? `**Driver:** ${driverName}  ` : '';
     md += `**Checked at:** ${new Date(summary.checked_at).toLocaleString()}\n\n`;
 
     md += '## Summary\n\n';
@@ -189,6 +203,18 @@ export const DiagnosticsView = ({ fileId }: { fileId: string | null }) => {
             </p>
           </div>
           <div className="flex gap-8">
+            {venueName && (
+              <div className="text-center">
+                <div className="text-slate-400 text-xs uppercase font-bold mb-1">Race</div>
+                <div className="text-lg font-mono font-bold text-white">{venueName}</div>
+              </div>
+            )}
+            {driverName && (
+              <div className="text-center">
+                <div className="text-slate-400 text-xs uppercase font-bold mb-1">Driver</div>
+                <div className="text-lg font-mono font-bold text-white">{driverName}</div>
+              </div>
+            )}
             <div className="text-center">
               <div className="text-slate-400 text-xs uppercase font-bold mb-1">Total Violations</div>
               <div className="text-3xl font-mono font-bold text-white">{summary.total_violations}</div>
