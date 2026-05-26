@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid, Tooltip,
+  ScatterChart, Scatter, Line, XAxis, YAxis, ZAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend
 } from 'recharts';
 import apiClient from '../lib/api';
@@ -24,12 +24,26 @@ export const TrackPlot = ({ fileId }: { fileId: string }) => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [venueName, setVenueName] = useState<string>('Race Track');
+  const [driverName, setDriverName] = useState<string>('');
 
   useEffect(() => {
     const fetchGPSData = async () => {
       setLoading(true);
       setError(null);
       try {
+        // Fetch summary to extract venue name from metadata
+        const summaryRes = await apiClient.get(`/files/${fileId}/summary`);
+        const meta = summaryRes.data?.metadata;
+        const parsedMeta = typeof meta === 'string' ? JSON.parse(meta) : meta;
+        const venue = parsedMeta?.Venue || parsedMeta?.venue || '';
+        const parsedVenue = venue.split(',')[0].replace(/"/g, '').trim() || 'Race Track';
+        setVenueName(parsedVenue);
+
+        const driver = parsedMeta?.Driver || parsedMeta?.driver || '';
+        const parsedDriver = driver.split(',')[0].replace(/"/g, '').trim() || '';
+        setDriverName(parsedDriver);
+
         // We explicitly request the GPS columns
         const res = await apiClient.get('/files/data', {
           params: {
@@ -167,7 +181,8 @@ export const TrackPlot = ({ fileId }: { fileId: string }) => {
   return (
     <Card variant="glass" className="p-6 h-full flex flex-col">
       <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-medium text-white">Race Track Path</h3>
+        <h3 className="text-lg font-medium text-white">{venueName}</h3>
+        {driverName && <span className="text-sm text-slate-300">{driverName}</span>}
         <span className="text-xs text-slate-400 font-mono">Units: Meters</span>
       </div>
       <div className="flex-1 w-full max-w-[800px] mx-auto h-[600px]">
@@ -178,7 +193,6 @@ export const TrackPlot = ({ fileId }: { fileId: string }) => {
               type="number"
               dataKey="x"
               name="East-West"
-              unit="m"
               stroke="#94a3b8"
               fontSize={12}
               domain={plotState.domains.x}
@@ -188,7 +202,6 @@ export const TrackPlot = ({ fileId }: { fileId: string }) => {
               type="number"
               dataKey="y"
               name="North-South"
-              unit="m"
               stroke="#94a3b8"
               fontSize={12}
               domain={plotState.domains.y}
@@ -197,23 +210,32 @@ export const TrackPlot = ({ fileId }: { fileId: string }) => {
             <ZAxis range={[1, 1]} />
             <Tooltip
               cursor={{ strokeDasharray: '3 3' }}
-              contentStyle={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }}
-              itemStyle={{ color: '#fff' }}
-              formatter={(value: any, name: string, props: any) => {
-                if (name === 'x' || name === 'y') return [`${value.toFixed(2)}m`, name === 'x' ? 'East-West' : 'North-South'];
-                return [value, name];
+              content={({ active, payload }) => {
+                if (!active || !payload?.length) return null;
+                const pt = payload[0].payload as { x: number; y: number; lat: number; lon: number };
+                return (
+                  <div style={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '8px 12px', borderRadius: '6px' }}>
+                    <div className="text-sm font-medium mb-1">GPS: {pt.lat.toFixed(6)}, {pt.lon.toFixed(6)}</div>
+                    <div className="text-xs text-slate-300">E-W: {pt.x.toFixed(2)}m</div>
+                    <div className="text-xs text-slate-300">N-S: {pt.y.toFixed(2)}m</div>
+                  </div>
+                );
               }}
-              labelFormatter={(label) => `Point: ${label}`}
             />
+            
             <Scatter
               name="Vehicle Path"
               data={plotState.data}
               fill="#3b82f6"
-              fillOpacity={0.4}
+              fillOpacity={0}
               line stroke="#3b82f6" strokeWidth={1}
-              shape={()=> null}
+              shape={(props) => {
+    // This renders an invisible structural circle that still catches mouse hovers
+                return <circle cx={props.cx} cy={props.cy} r={6} fill="transparent" stroke="transparent" />;
+              }}
             />
           </ScatterChart>
+          
         </ResponsiveContainer>
       </div>
     </Card>
