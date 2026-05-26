@@ -22,7 +22,10 @@ export const Reports = ({ setPage }: { setPage: PageCallback }) => {
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [filenameFilter, setFilenameFilter] = useState<string>('');
   const [fileOptions, setFileOptions] = useState<string[]>([]);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(() => {
+    const saved = localStorage.getItem('reportsPageSize');
+    return saved ? Number(saved) : 20;
+  });
   const [currentPage, setCurrentPage] = useState(1);
 
   const fetchReports = () => {
@@ -129,7 +132,12 @@ export const Reports = ({ setPage }: { setPage: PageCallback }) => {
             <label className="text-sm text-slate-400">Per page:</label>
             <select
               value={pageSize}
-              onChange={e => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
+              onChange={e => {
+                const size = Number(e.target.value);
+                setPageSize(size);
+                localStorage.setItem('reportsPageSize', String(size));
+                setCurrentPage(1);
+              }}
               className="bg-slate-800/50 border border-white/10 rounded-lg px-3 py-1 text-sm text-white outline-none focus:ring-2 ring-blue-500/50"
             >
               <option value={10}>10</option>
