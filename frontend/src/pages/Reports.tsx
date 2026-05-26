@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Card } from '../components/ui/Card';
+import { Info, X } from 'lucide-react';
 import apiClient from '../lib/api';
 
 interface Report {
@@ -27,6 +28,14 @@ export const Reports = ({ setPage }: { setPage: PageCallback }) => {
     return saved ? Number(saved) : 20;
   });
   const [currentPage, setCurrentPage] = useState(1);
+  // Modal state for rules snapshot
+  const [showSnapshotModal, setShowSnapshotModal] = useState(false);
+  const [modalSummaryId, setModalSummaryId] = useState<number | null>(null);
+  const [modalSnapshot, setModalSnapshot] = useState<Record<string, Record<string, number>>>({});
+  const [modalRuleStatuses, setModalRuleStatuses] = useState<Record<string, string>>({});
+  const [modalLoading, setModalLoading] = useState(false);
+  // Cached rules metadata
+  const [rulesMetadata, setRulesMetadata] = useState<Record<string, Record<string, string>>>({});
 
   const fetchReports = () => {
     setIsLoading(true);
@@ -59,6 +68,19 @@ export const Reports = ({ setPage }: { setPage: PageCallback }) => {
       .catch(e => console.error('Error fetching file options:', e));
   }, []);
 
+  // Fetch rules metadata for config_key → name mapping (once on mount)
+  useEffect(() => {
+    apiClient.get<any[]>('/rules')
+      .then(res => {
+        const meta: Record<string, Record<string, string>> = {};
+        res.data.forEach(rule => {
+          meta[rule.config_key] = { name: rule.name, id: rule.id };
+        });
+        setRulesMetadata(meta);
+      })
+      .catch(e => console.error('Error fetching rules metadata:', e));
+  }, []);
+
   const handlePageChange = (newPage: number) => {
     const maxPage = Math.max(1, Math.ceil(totalReports / pageSize));
     if (newPage >= 1 && newPage <= maxPage) {
@@ -68,6 +90,45 @@ export const Reports = ({ setPage }: { setPage: PageCallback }) => {
 
   const handleFilterChange = () => {
     setCurrentPage(1);
+  };
+
+  const handleViewSnapshot = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const reportId = Number((e.currentTarget as HTMLElement).dataset.reportId);
+    setModalSummaryId(reportId);
+    setModalLoading(true);
+    setShowSnapshotModal(true);
+
+    apiClient.get<any>(`/reports/${reportId}`)
+      .then(res => {
+        const summary = res.data.summary;
+        // Parse rules_snapshot (may be string or already parsed object)
+        let snapshot = summary?.rules_snapshot || {};
+        if (typeof snapshot === 'string') {
+          snapshot = JSON.parse(snapshot);
+        }
+        setModalSnapshot(snapshot);
+
+        // Parse summary_json for per-rule status
+        let summaryJson = summary?.summary_json || {};
+        if (typeof summaryJson === 'string') {
+          summaryJson = JSON.parse(summaryJson);
+        }
+        const statuses: Record<string, string> = {};
+        Object.entries(summaryJson).forEach(([ruleId, data]) => {
+          statuses[data?.name || ruleId] = data?.status || 'UNKNOWN';
+        });
+        setModalRuleStatuses(statuses);
+      })
+      .catch(e => console.error('Error fetching report snapshot:', e))
+      .finally(() => setModalLoading(false));
+  };
+
+  const handleCloseModal = () => {
+    setShowSnapshotModal(false);
+    setModalSummaryId(null);
+    setModalSnapshot({});
+    setModalRuleStatuses({});
   };
 
   const handleReportClick = (reportId: number) => {
@@ -83,6 +144,17 @@ export const Reports = ({ setPage }: { setPage: PageCallback }) => {
       default: return 'text-slate-400';
     }
   };
+
+  const getRuleStatusBadge = (status: string) => {
+    switch (status) {
+      case 'PASS': return 'bg-emerald-500/20 text-emerald-400';
+      case 'FAIL': return 'bg-red-500/20 text-red-400';
+      case 'WARN': return 'bg-yellow-500/20 text-yellow-400';
+      default: return 'bg-slate-500/20 text-slate-400';
+    }
+  };
+
+  const getRuleName = (configKey: string) => rulesMetadata[configKey]?.name || configKey;
 
   const maxPage = Math.max(1, Math.ceil(totalReports / pageSize));
   const startIdx = (currentPage - 1) * pageSize + 1;
@@ -158,12 +230,13 @@ export const Reports = ({ setPage }: { setPage: PageCallback }) => {
                 <th className="p-3 border-b border-white/10">Driver</th>
                 <th className="p-3 border-b border-white/10">Status</th>
                 <th className="p-3 border-b border-white/10">Violations</th>
+                <th className="p-3 border-b border-white/10 text-center">Rules</th>
               </tr>
             </thead>
             <tbody className="text-slate-300">
               {reports.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center italic text-slate-500">
+                  <td colSpan={7} className="p-8 text-center italic text-slate-500">
                     No reports found.
                   </td>
                 </tr>
@@ -184,6 +257,16 @@ export const Reports = ({ setPage }: { setPage: PageCallback }) => {
                        {report.status}
                     </td>
                     <td className="p-3 font-mono">{report.total_violations}</td>
+                    <td className="p-3 text-center">
+                      <button
+                        data-report-id={report.id}
+                        onClick={handleViewSnapshot}
+                        className="inline-flex items-center justify-center text-slate-400 hover:text-blue-400 transition-colors"
+                        title="View rules used for this report"
+                      >
+                        <Info size={16} />
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
@@ -218,6 +301,71 @@ export const Reports = ({ setPage }: { setPage: PageCallback }) => {
           </div>
         </div>
       </Card>
+
+      {/* Rules Snapshot Modal */}
+      {showSnapshotModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={handleCloseModal}
+        >
+          <div
+            className="bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal header */}
+            <div className="flex items-center justify-between p-6 border-b border-white/10">
+              <h3 className="text-xl font-bold text-white">
+                Rules Snapshot {modalSummaryId ? `— Report #${modalSummaryId}` : ''}
+              </h3>
+              <button
+                onClick={handleCloseModal}
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal content */}
+            <div className="p-6 overflow-y-auto flex-1">
+              {modalLoading ? (
+                <div className="flex items-center justify-center py-12 text-slate-400">
+                  Loading rules snapshot...
+                </div>
+              ) : Object.keys(modalSnapshot).length === 0 ? (
+                <div className="text-center text-slate-500 italic py-8">
+                  No rules snapshot available for this report.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {Object.entries(modalSnapshot).map(([configKey, thresholds]) => {
+                    const thresholdsObj = thresholds as Record<string, number>;
+                    const ruleName = getRuleName(configKey);
+                    const ruleStatus = modalRuleStatuses[ruleName] || modalRuleStatuses[configKey] || 'UNKNOWN';
+                    return (
+                      <div key={configKey} className="bg-white/5 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-sm font-semibold text-white">{ruleName}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${getRuleStatusBadge(ruleStatus)}`}>
+                            {ruleStatus}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {Object.entries(thresholdsObj).map(([key, value]) => (
+                            <div key={key} className="flex items-center gap-2">
+                              <span className="text-xs font-mono text-slate-500 uppercase">{key}:</span>
+                              <span className="text-sm font-mono text-slate-300">{value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
