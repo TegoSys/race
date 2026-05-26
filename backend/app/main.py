@@ -360,20 +360,24 @@ async def get_file_rules(file_id: int, user: str = Depends(get_current_user)):
 @app.get("/reports")
 async def get_reports(
     file_id: Optional[int] = None,
+    filename: Optional[str] = None,
     status: Optional[str] = None,
     min_date: Optional[str] = None,
     max_date: Optional[str] = None,
-    limit: int = 25,
+    limit: int = 20,
     offset: int = 0,
     user: str = Depends(get_current_user)
 ):
-    """List all reports with optional filtering."""
+    """List all reports with optional filtering and pagination."""
     conditions = []
     params = []
 
     if file_id:
         conditions.append("r.file_id = %s")
         params.append(file_id)
+    if filename:
+        conditions.append("f.filename = %s")
+        params.append(filename)
     if status:
         conditions.append("r.status = %s")
         params.append(status)
@@ -385,6 +389,16 @@ async def get_reports(
         params.append(max_date)
 
     where = " WHERE " + " AND ".join(conditions) if conditions else ""
+
+    # Get total count for pagination
+    count_query = f"""
+        SELECT COUNT(*) as total
+        FROM rule_check_summaries r
+        JOIN race_files f ON r.file_id = f.id
+        {where}
+    """
+    total = db.execute(count_query, params)[0]['total']
+
     params.extend([limit, offset])
 
     query = f"""
@@ -411,7 +425,7 @@ async def get_reports(
         report['driver'] = driver.split(',')[0].replace('"', '').strip() if driver else ''
         del report['metadata_json']
 
-    return reports
+    return {"reports": reports, "total": total}
 
 @app.get("/reports/{summary_id}")
 async def get_report(summary_id: int, user: str = Depends(get_current_user)):
