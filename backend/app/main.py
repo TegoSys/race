@@ -356,3 +356,103 @@ async def get_file_rules(file_id: int, user: str = Depends(get_current_user)):
         "summary": summary,
         "violations": violations
     }
+
+@app.get("/reports")
+async def get_reports(
+    file_id: Optional[int] = None,
+    status: Optional[str] = None,
+    min_date: Optional[str] = None,
+    max_date: Optional[str] = None,
+    limit: int = 25,
+    offset: int = 0,
+    user: str = Depends(get_current_user)
+):
+    """List all reports with optional filtering."""
+    conditions = []
+    params = []
+
+    if file_id:
+        conditions.append("r.file_id = %s")
+        params.append(file_id)
+    if status:
+        conditions.append("r.status = %s")
+        params.append(status)
+    if min_date:
+        conditions.append("r.checked_at >= %s")
+        params.append(min_date)
+    if max_date:
+        conditions.append("r.checked_at <= %s")
+        params.append(max_date)
+
+    where = " WHERE " + " AND ".join(conditions) if conditions else ""
+    params.extend([limit, offset])
+
+    query = f"""
+        SELECT r.id, r.file_id, r.checked_at, r.total_violations, r.status,
+               f.filename, f.metadata_json
+        FROM rule_check_summaries r
+        JOIN race_files f ON r.file_id = f.id
+        {where}
+        ORDER BY r.checked_at DESC
+        LIMIT %s OFFSET %s
+    """
+
+    reports = db.execute(query, params)
+
+    # Extract venue/driver from metadata_json for each report
+    for report in reports:
+        meta = report.get('metadata_json') or {}
+        if isinstance(meta, str):
+            import json as json_mod
+            meta = json_mod.loads(meta)
+        venue = meta.get('Venue', '') or meta.get('venue', '') or ''
+        report['venue'] = venue.split(',')[0].replace('"', '').strip() if venue else ''
+        driver = meta.get('Driver', '') or meta.get('driver', '') or ''
+        report['driver'] = driver.split(',')[0].replace('"', '').strip() if driver else ''
+        del report['metadata_json']
+
+    return reports
+
+@app.get("/reports/{summary_id}")
+async def get_report(summary_id: int, user: str = Depends(get_current_user)):
+    """Retrieve a specific historical report."""
+    # Get summary
+    summary_res = db.execute(
+        "SELECT r.id, r.file_id, r.checked_at, r.total_violations, r.status, r.summary_json, r.rules_snapshot, f.filename FROM rule_check_summaries r JOIN race_files f ON r.file_id = f.id WHERE r.id = %s",
+        (summary_id,)
+    )
+    if not summary_res:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    summary = summary_res[0]
+
+    # Get venue/driver from race_files metadata
+    file_res = db.execute(
+        "SELECT metadata_json FROM race_files WHERE id = %s",
+        (summary['file_id'],)
+    )
+    venue = ''
+    driver = ''
+    if file_res:
+        meta = file_res[0].get('metadata_json') or {}
+        if isinstance(meta, str):
+            import json as json_mod
+            meta = json_mod.loads(meta)
+        v = meta.get('Venue', '') or meta.get('venue', '') or ''
+        venue = v.split(',')[0].replace('"', '').strip() if v else ''
+        d = meta.get('Driver', '') or meta.get('driver', '') or ''
+        driver = d.split(',')[0].replace('"', '').strip() if d else ''
+
+    summary['venue'] = venue
+    summary['driver'] = driver
+
+    # Get associated violations
+    violations = db.execute(
+        "SELECT rule_id, severity, description, timestamp, value, context_json FROM rule_violations WHERE summary_id = %s",
+        (summary_id,)
+    )
+
+    return {
+        "summary": summary,
+        "violations": violations
+    }

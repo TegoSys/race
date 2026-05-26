@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card } from '../components/ui/Card';
 import { AlertCircle, CheckCircle2, AlertTriangle, Download } from 'lucide-react';
 import apiClient from '../lib/api';
@@ -19,6 +19,8 @@ interface Summary {
   total_violations: number;
   status: string;
   summary_json: any;
+  venue?: string;
+  driver?: string;
 }
 
 interface DiagnosticsData {
@@ -26,7 +28,7 @@ interface DiagnosticsData {
   violations: Violation[];
 }
 
-export const DiagnosticsView = ({ fileId }: { fileId: string | null }) => {
+export const DiagnosticsView = ({ fileId, summaryId }: { fileId: string | null, summaryId: string | null }) => {
   const [data, setData] = useState<DiagnosticsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -35,22 +37,35 @@ export const DiagnosticsView = ({ fileId }: { fileId: string | null }) => {
   const [driverName, setDriverName] = useState<string>('');
 
   useEffect(() => {
-    if (!fileId) return;
+    // Determine which ID to use: summaryId (historical) or fileId (latest)
+    const id = summaryId || fileId;
+    if (!id) return;
     setIsLoading(true);
     setError(null);
     const controller = new AbortController();
-    apiClient.get<DiagnosticsData>(`/files/${fileId}/rules`, { signal: controller.signal })
+
+    // If summaryId is provided, fetch from /reports endpoint
+    // Otherwise fetch from /files/{fileId}/rules endpoint
+    const fetchUrl = summaryId ? `/reports/${summaryId}` : `/files/${fileId}/rules`;
+    apiClient.get<DiagnosticsData>(fetchUrl, { signal: controller.signal })
       .then(async res => {
-        // Fetch summary to extract venue/driver from metadata
-        try {
-          const summaryRes = await apiClient.get(`/files/${fileId}/summary`, { signal: controller.signal });
-          const meta = summaryRes.data?.metadata;
-          const parsedMeta = typeof meta === 'string' ? JSON.parse(meta) : meta;
-          const venue = parsedMeta?.Venue || parsedMeta?.venue || '';
-          setVenueName(venue.split(',')[0].replace(/"/g, '').trim() || '');
-          const driver = parsedMeta?.Driver || parsedMeta?.driver || '';
-          setDriverName(driver.split(',')[0].replace(/"/g, '').trim() || '');
-        } catch (_) { /* non-critical, continue without venue/driver */ }
+        // Extract venue/driver from summary if available (from /reports endpoint)
+        const summary = res.data?.summary;
+        if (summary?.venue) {
+          setVenueName(summary.venue);
+          setDriverName(summary.driver || '');
+        } else if (fileId && !summaryId) {
+          // Fetch summary to extract venue/driver from metadata (existing behavior)
+          try {
+            const summaryRes = await apiClient.get(`/files/${fileId}/summary`, { signal: controller.signal });
+            const meta = summaryRes.data?.metadata;
+            const parsedMeta = typeof meta === 'string' ? JSON.parse(meta) : meta;
+            const venue = parsedMeta?.Venue || parsedMeta?.venue || '';
+            setVenueName(venue.split(',')[0].replace(/"/g, '').trim() || '');
+            const driver = parsedMeta?.Driver || parsedMeta?.driver || '';
+            setDriverName(driver.split(',')[0].replace(/"/g, '').trim() || '');
+          } catch (_) { /* non-critical, continue without venue/driver */ }
+        }
         setData(res.data);
         setIsLoading(false);
       })
@@ -61,7 +76,7 @@ export const DiagnosticsView = ({ fileId }: { fileId: string | null }) => {
         }
       });
     return () => controller.abort();
-  }, [fileId]);
+  }, [fileId, summaryId]);
 
   // Hooks MUST be before any early returns (React Rules of Hooks)
   const safeData = data || { summary: {} as Summary, violations: [] };
@@ -80,10 +95,10 @@ export const DiagnosticsView = ({ fileId }: { fileId: string | null }) => {
     return result;
   }, [violations, pageSize]);
 
-  if (!fileId) {
+  if (!fileId && !summaryId) {
     return (
       <div className="h-full flex items-center justify-center text-slate-500 italic">
-        Please select a file to view diagnostics.
+        No diagnostics report selected.
       </div>
     );
   }

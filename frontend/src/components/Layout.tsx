@@ -2,7 +2,7 @@ import React from 'react';
 
 interface LayoutProps {
   children: React.ReactNode;
-  setPage: (page: 'dashboard' | 'rules' | 'upload' | 'analysis' | 'admin') => void;
+  setPage: (page: 'dashboard' | 'rules' | 'reports' | 'upload' | 'analysis' | 'admin' | 'diagnostics') => void;
   onLogout: () => void;
 }
 
@@ -32,6 +32,12 @@ export const Layout: React.FC<LayoutProps> = ({ children, setPage, onLogout }) =
               className="text-slate-400 hover:text-white transition-colors bg-transparent border-none p-0 cursor-pointer"
             >
               Analysis
+            </button>
+            <button
+              onClick={() => setPage('reports')}
+              className="text-slate-400 hover:text-white transition-colors bg-transparent border-none p-0 cursor-pointer"
+            >
+              Reports
             </button>
             <button
               onClick={() => setPage('rules')}

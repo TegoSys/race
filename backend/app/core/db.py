@@ -118,7 +118,8 @@ class Database:
             self.execute("ALTER TABLE rule_violations ADD COLUMN IF NOT EXISTS summary_id INTEGER")
             self.execute("ALTER TABLE rule_violations ADD COLUMN IF NOT EXISTS description TEXT")
             self.execute("ALTER TABLE rule_violations ADD COLUMN IF NOT EXISTS context_json JSONB")
+            self.execute("ALTER TABLE rule_check_summaries ADD COLUMN IF NOT EXISTS rules_snapshot JSONB")
         except Exception as e:
-            logger.warning(f"Migration failed for rule_violations: {e}")
+            logger.warning(f"Migration failed: {e}")
 
 db = Database()
