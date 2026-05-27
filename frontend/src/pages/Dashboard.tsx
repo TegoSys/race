@@ -115,7 +115,7 @@ export const Dashboard: React.FC = () => {
                     .sort(([, a], [, b]) => Math.abs(b as number) - Math.abs(a as number))
                     .slice(0, 3)
                     .map(([pair, val]) => (
-                      <div key={pair} className="flex justify-between items-center text-xs">
+                      <div key={pair} className="flex justify-between items-center text-xs gap-3">
                         <span className="text-slate-300">{pair}</span>
                         <span className={`font-mono font-bold ${Math.abs(val as number) > 0.7 ? 'text-emerald-400' : 'text-blue-400'}`}>
                           {Number(val).toFixed(3)}
