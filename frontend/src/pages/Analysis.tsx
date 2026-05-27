@@ -243,7 +243,7 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
     if (selectedFile && selectedColumns.length > 0) {
       fetchData();
     }
-  }, [selectedFile, selectedColumns, downsampleFactor]);
+  }, [selectedFile, downsampleFactor]);
 
   const fetchFiles = async () => {
     try {
@@ -387,14 +387,24 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
           <div className="space-y-2">
             <div className="flex justify-between items-center">
               <label className="text-sm text-emerald-400">Select Channels</label>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={clearAllColumns}
-                disabled={selectedColumns.length === 0}
-              >
-                Reset
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { fetchData(); setActiveTab('analysis'); }}
+                  disabled={selectedColumns.length === 0}
+                >
+                  Plot
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={clearAllColumns}
+                  disabled={selectedColumns.length === 0}
+                >
+                  Reset
+                </Button>
+              </div>
             </div>
             <div className="h-120 overflow-y-auto border border-white/10 rounded-lg p-2 space-y-1 bg-slate-800/30">
               {availableColumns.map(col => (
