@@ -185,7 +185,7 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
   const [downsampleFactor, setDownsampleFactor] = useState<number>(100);
   const [data, setData] = useState<any[]>([]);
   const [summaryData, setSummaryData] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'analysis' | 'summary' | 'trackPlot'>('analysis');
+  const [activeTab, setActiveTab] = useState<'analysis' | 'summary' | 'trackPlot'>('summary');
   const [loading, setLoading] = useState(false);
 
   const { mutateAsync: runDiagnosticsAsync, isPending: isDiagnosticsPending } = useMutation({
@@ -220,6 +220,14 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
 
   useEffect(() => {
     fetchFiles();
+  }, []);
+
+  // Load summary if a file was persisted from a previous visit
+  useEffect(() => {
+    if (selectedFile) {
+      fetchColumns(selectedFile);
+      fetchSummary(selectedFile);
+    }
   }, []);
 
   useEffect(() => {
@@ -518,16 +526,6 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
         <div ref={dashboardRef} className="md:col-span-2 space-y-6">
           <div className="flex gap-2 p-1 bg-slate-800/50 border border-white/10 rounded-xl w-fit">
             <button
-              onClick={() => setActiveTab('analysis')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                activeTab === 'analysis'
-                ? 'bg-blue-600 text-white shadow-lg'
-                : 'text-slate-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              Chart Analysis
-            </button>
-            <button
               onClick={() => setActiveTab('summary')}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 activeTab === 'summary'
@@ -536,6 +534,16 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
               }`}
             >
               File Summary
+            </button>
+            <button
+              onClick={() => setActiveTab('analysis')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'analysis'
+                ? 'bg-blue-600 text-white shadow-lg'
+                : 'text-slate-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              Chart Analysis
             </button>
             <button
               onClick={() => setActiveTab('trackPlot')}
