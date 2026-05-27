@@ -14,6 +14,23 @@ import { API_BASE_URL } from '../config';
 
 const API_BASE = API_BASE_URL;
 
+const TimeSeriesTooltip = ({ active, payload, label }: { active?: boolean, payload?: any[], label?: string | number | undefined }) => {
+  if (active && payload && payload.length) {
+    return (
+      <div style={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', padding: '10px 12px', borderRadius: '8px', color: '#fff' }}>
+        <div style={{ fontWeight: 600, marginBottom: 4 }}>Time: {typeof label === 'number' ? (label / 100).toFixed(1) : label} s</div>
+        {payload.map((entry: any, i: number) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+            <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', backgroundColor: entry.stroke || entry.fill, flexShrink: 0 }} />
+            <span>{entry.name}: {typeof entry.value === 'number' ? entry.value.toFixed(2) : entry.value}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
+
 const SummaryView = ({ summaryData, fileId }: { summaryData: any, fileId: string }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
@@ -217,6 +234,7 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
   const dashboardRef = useRef<HTMLDivElement>(null);
   const timeSeriesRef = useRef<HTMLDivElement>(null);
   const histogramsRef = useRef<HTMLDivElement>(null);
+  const debounceTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     fetchFiles();
@@ -243,7 +261,24 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
     if (selectedFile && selectedColumns.length > 0) {
       fetchData();
     }
-  }, [selectedFile, downsampleFactor]);
+  }, [selectedFile]);
+
+  // Debounced refetch when downsample factor changes
+  useEffect(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    debounceTimerRef.current = window.setTimeout(() => {
+      if (selectedFile && selectedColumns.length > 0) {
+        fetchData();
+      }
+    }, 500);
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [downsampleFactor, selectedFile]);
 
   const fetchFiles = async () => {
     try {
@@ -625,10 +660,7 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
   }}
 />
                               <YAxis stroke="#94a3b8" fontSize={12} />
-                              <Tooltip
-                                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }}
-                                itemStyle={{ color: '#fff' }}
-                              />
+                              <Tooltip content={<TimeSeriesTooltip />} />
                               <Legend wrapperStyle={{ marginTop: '21px' }} />
                               {selectedColumns.map((col, idx) => (
                                 <Line
