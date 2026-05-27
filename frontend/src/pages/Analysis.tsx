@@ -206,12 +206,19 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
   const [files, setFiles] = useState<{ id: number, filename: string }[]>([]);
   const [selectedFile, setSelectedFile] = useState(() => localStorage.getItem('analysisSelectedFile') || '');
   const [availableColumns, setAvailableColumns] = useState<string[]>([]);
-  const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
+  const [selectedColumns, setSelectedColumns] = useState<string[]>(() => {
+    const saved = localStorage.getItem('analysisSelectedColumns');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [downsampleFactor, setDownsampleFactor] = useState<number>(100);
   const [data, setData] = useState<any[]>([]);
   const [summaryData, setSummaryData] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'analysis' | 'summary' | 'trackPlot'>('summary');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem('analysisSelectedColumns', JSON.stringify(selectedColumns));
+  }, [selectedColumns]);
 
   const { mutateAsync: runDiagnosticsAsync, isPending: isDiagnosticsPending } = useMutation({
     mutationFn: async (payload: { id: string, factor: number }) => {
@@ -243,6 +250,7 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
   const timeSeriesRef = useRef<HTMLDivElement>(null);
   const histogramsRef = useRef<HTMLDivElement>(null);
   const debounceTimerRef = useRef<number | null>(null);
+  const hasPlottedRef = useRef(false);
 
   useEffect(() => {
     fetchFiles();
@@ -265,19 +273,13 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
     }
   }, [selectedFile]);
 
-  useEffect(() => {
-    if (selectedFile && selectedColumns.length > 0) {
-      fetchData();
-    }
-  }, [selectedFile]);
-
   // Debounced refetch when downsample factor changes
   useEffect(() => {
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
     debounceTimerRef.current = window.setTimeout(() => {
-      if (selectedFile && selectedColumns.length > 0) {
+      if (hasPlottedRef.current && selectedFile && selectedColumns.length > 0) {
         fetchData();
       }
     }, 500);
@@ -286,7 +288,7 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
         clearTimeout(debounceTimerRef.current);
       }
     };
-  }, [downsampleFactor, selectedFile]);
+  }, [downsampleFactor]);
 
   const fetchFiles = async () => {
     try {
@@ -340,7 +342,10 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
     );
   };
 
-  const clearAllColumns = () => setSelectedColumns([]);
+  const clearAllColumns = () => {
+    setSelectedColumns([]);
+    localStorage.removeItem('analysisSelectedColumns');
+  };
 
   const savePlot = () => {
     setExportSettings({
@@ -419,7 +424,7 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
             <label className="text-sm text-slate-400">Select File</label>
             <select
               value={selectedFile}
-              onChange={(e) => { setSelectedFile(e.target.value); setSelectedColumns([]); localStorage.setItem('analysisSelectedFile', e.target.value); }}
+              onChange={(e) => { setSelectedFile(e.target.value); setSelectedColumns([]); localStorage.setItem('analysisSelectedFile', e.target.value); localStorage.removeItem('analysisSelectedColumns'); }}
               className="w-full bg-slate-800/50 border border-white/10 rounded-lg p-2 text-white outline-none focus:ring-2 ring-blue-500/50"
             >
               <option value="">-- Choose a file --</option>
@@ -434,7 +439,7 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => { fetchData(); setActiveTab('analysis'); }}
+                  onClick={() => { hasPlottedRef.current = true; fetchData(); setActiveTab('analysis'); }}
                   disabled={selectedColumns.length === 0}
                 >
                   Plot
