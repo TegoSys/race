@@ -7,6 +7,7 @@ const cleanMetadata = (value: string): string =>
     .trim()
     .replace(/"/g, '')
     .replace(/,+/g, ',')
+    .replace(/,$/, '')
     .replace(/\b\w/g, c => c.toUpperCase());
 
 export const Dashboard: React.FC = () => {

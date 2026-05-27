@@ -19,6 +19,7 @@ const cleanMetadata = (value: string): string =>
     .trim()
     .replace(/"/g, '')
     .replace(/,+/g, ',')
+    .replace(/,$/, '')
     .replace(/\b\w/g, c => c.toUpperCase());
 
 const TimeSeriesTooltip = ({ active, payload, label }: { active?: boolean, payload?: any[], label?: string | number | undefined }) => {
