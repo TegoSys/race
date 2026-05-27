@@ -10,12 +10,19 @@ export const Dashboard: React.FC = () => {
     total_races: number;
   } | null>(null);
   const [files, setFiles] = useState<{ id: number, filename: string }[]>([]);
-  const [selectedFileId, setSelectedFileId] = useState<string>('');
+  const [selectedFileId, setSelectedFileId] = useState(() => localStorage.getItem('dashboardSelectedFile') || '');
   const [selectedFileSummary, setSelectedFileSummary] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
+  }, []);
+
+  // Fetch summary if a file was persisted from a previous visit
+  useEffect(() => {
+    if (selectedFileId) {
+      handleFileChange(selectedFileId);
+    }
   }, []);
 
   const fetchDashboardData = async () => {
@@ -33,6 +40,7 @@ export const Dashboard: React.FC = () => {
 
   const handleFileChange = async (fileId: string) => {
     setSelectedFileId(fileId);
+    localStorage.setItem('dashboardSelectedFile', fileId);
     if (!fileId) {
       setSelectedFileSummary(null);
       return;
