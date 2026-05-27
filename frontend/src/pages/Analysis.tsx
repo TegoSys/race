@@ -18,7 +18,7 @@ const TimeSeriesTooltip = ({ active, payload, label }: { active?: boolean, paylo
   if (active && payload && payload.length) {
     return (
       <div style={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', padding: '10px 12px', borderRadius: '8px', color: '#fff' }}>
-        <div style={{ fontWeight: 600, marginBottom: 4 }}>Time: {typeof label === 'number' ? (label / 100).toFixed(1) : label} s</div>
+        <div style={{ fontWeight: 600, marginBottom: 4 }}>Time: {typeof label === 'number' ? (label / 100).toFixed(1) : label}s</div>
         {payload.map((entry: any, i: number) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
             <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', backgroundColor: entry.stroke || entry.fill, flexShrink: 0 }} />
