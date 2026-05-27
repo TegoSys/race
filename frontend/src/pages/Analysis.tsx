@@ -179,7 +179,7 @@ const SummaryView = ({ summaryData, fileId }: { summaryData: any, fileId: string
 
 export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => void, setSelectedFileId: (id: string | null) => void }) => {
   const [files, setFiles] = useState<{ id: number, filename: string }[]>([]);
-  const [selectedFile, setSelectedFile] = useState<string>('');
+  const [selectedFile, setSelectedFile] = useState(() => localStorage.getItem('analysisSelectedFile') || '');
   const [availableColumns, setAvailableColumns] = useState<string[]>([]);
   const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
   const [downsampleFactor, setDownsampleFactor] = useState<number>(100);
@@ -368,7 +368,7 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
             <label className="text-sm text-slate-400">Select File</label>
             <select
               value={selectedFile}
-              onChange={(e) => { setSelectedFile(e.target.value); setSelectedColumns([]); }}
+              onChange={(e) => { setSelectedFile(e.target.value); setSelectedColumns([]); localStorage.setItem('analysisSelectedFile', e.target.value); }}
               className="w-full bg-slate-800/50 border border-white/10 rounded-lg p-2 text-white outline-none focus:ring-2 ring-blue-500/50"
             >
               <option value="">-- Choose a file --</option>
