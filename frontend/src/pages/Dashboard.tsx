@@ -1,6 +1,13 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import apiClient from '../lib/api';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
+
+const cleanMetadata = (value: string): string =>
+  String(value)
+    .trim()
+    .replace(/"/g, '')
+    .replace(/,+/g, ',')
+    .replace(/\b\w/g, c => c.toUpperCase());
 
 export const Dashboard: React.FC = () => {
   const [stats, setStats] = useState<{
@@ -93,9 +100,9 @@ export const Dashboard: React.FC = () => {
                     ? JSON.parse(selectedFileSummary.metadata)
                     : selectedFileSummary.metadata || {}
                   ).map(([key, value]) => (
-                    <div key={key} className="flex justify-between gap-4">
-                      <span className="text-slate-500">{key.replace('_', ' ')}:</span>
-                      <span className="text-white font-mono">{String(value)}</span>
+                    <div key={key} className="grid grid-cols-[auto_1fr] gap-2">
+                      <span className="text-slate-500 text-right">{key.replace('_', ' ')}:</span>
+                      <span className="text-white font-mono">{cleanMetadata(String(value))}</span>
                     </div>
                   ))}
                 </div>
@@ -147,3 +154,4 @@ export const Dashboard: React.FC = () => {
     </div>
   );
 };
+
