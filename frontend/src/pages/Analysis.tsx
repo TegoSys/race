@@ -14,6 +14,31 @@ import { API_BASE_URL } from '../config';
 
 const API_BASE = API_BASE_URL;
 
+const cleanMetadata = (value: string): string =>
+  String(value)
+    .trim()
+    .replace(/"/g, '')
+    .replace(/,+/g, ',')
+    .replace(/,$/, '')
+    .replace(/\b\w/g, c => c.toUpperCase());
+
+const TimeSeriesTooltip = ({ active, payload, label }: { active?: boolean, payload?: any[], label?: string | number | undefined }) => {
+  if (active && payload && payload.length) {
+    return (
+      <div style={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', padding: '10px 12px', borderRadius: '8px', color: '#fff' }}>
+        <div style={{ fontWeight: 600, marginBottom: 4 }}>Time: {typeof label === 'number' ? (label / 100).toFixed(1) : label}s</div>
+        {payload.map((entry: any, i: number) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+            <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', backgroundColor: entry.stroke || entry.fill, flexShrink: 0 }} />
+            <span>{entry.name}: {typeof entry.value === 'number' ? entry.value.toFixed(2) : entry.value}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
+
 const SummaryView = ({ summaryData, fileId }: { summaryData: any, fileId: string }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
@@ -71,7 +96,7 @@ const SummaryView = ({ summaryData, fileId }: { summaryData: any, fileId: string
                 .map(([key, value]) => (
                 <div key={key} className="p-3 bg-white/5 rounded-lg border border-white/10">
                   <div className="text-xs text-slate-400 uppercase font-semibold">{key.replace('_', ' ')}</div>
-                  <div className="text-white font-medium">{String(value)}</div>
+                  <div className="text-white font-medium">{cleanMetadata(String(value))}</div>
                 </div>
               ))}
             </div>
@@ -179,14 +204,21 @@ const SummaryView = ({ summaryData, fileId }: { summaryData: any, fileId: string
 
 export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => void, setSelectedFileId: (id: string | null) => void }) => {
   const [files, setFiles] = useState<{ id: number, filename: string }[]>([]);
-  const [selectedFile, setSelectedFile] = useState<string>('');
+  const [selectedFile, setSelectedFile] = useState(() => localStorage.getItem('analysisSelectedFile') || '');
   const [availableColumns, setAvailableColumns] = useState<string[]>([]);
-  const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
+  const [selectedColumns, setSelectedColumns] = useState<string[]>(() => {
+    const saved = localStorage.getItem('analysisSelectedColumns');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [downsampleFactor, setDownsampleFactor] = useState<number>(100);
   const [data, setData] = useState<any[]>([]);
   const [summaryData, setSummaryData] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'analysis' | 'summary' | 'trackPlot'>('analysis');
+  const [activeTab, setActiveTab] = useState<'analysis' | 'summary' | 'trackPlot'>('summary');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem('analysisSelectedColumns', JSON.stringify(selectedColumns));
+  }, [selectedColumns]);
 
   const { mutateAsync: runDiagnosticsAsync, isPending: isDiagnosticsPending } = useMutation({
     mutationFn: async (payload: { id: string, factor: number }) => {
@@ -217,9 +249,19 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
   const dashboardRef = useRef<HTMLDivElement>(null);
   const timeSeriesRef = useRef<HTMLDivElement>(null);
   const histogramsRef = useRef<HTMLDivElement>(null);
+  const debounceTimerRef = useRef<number | null>(null);
+  const hasPlottedRef = useRef(false);
 
   useEffect(() => {
     fetchFiles();
+  }, []);
+
+  // Load summary if a file was persisted from a previous visit
+  useEffect(() => {
+    if (selectedFile) {
+      fetchColumns(selectedFile);
+      fetchSummary(selectedFile);
+    }
   }, []);
 
   useEffect(() => {
@@ -231,11 +273,22 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
     }
   }, [selectedFile]);
 
+  // Debounced refetch when downsample factor changes
   useEffect(() => {
-    if (selectedFile && selectedColumns.length > 0) {
-      fetchData();
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
     }
-  }, [selectedFile, selectedColumns, downsampleFactor]);
+    debounceTimerRef.current = window.setTimeout(() => {
+      if (hasPlottedRef.current && selectedFile && selectedColumns.length > 0) {
+        fetchData();
+      }
+    }, 500);
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [downsampleFactor]);
 
   const fetchFiles = async () => {
     try {
@@ -289,7 +342,10 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
     );
   };
 
-  const clearAllColumns = () => setSelectedColumns([]);
+  const clearAllColumns = () => {
+    setSelectedColumns([]);
+    localStorage.removeItem('analysisSelectedColumns');
+  };
 
   const savePlot = () => {
     setExportSettings({
@@ -368,7 +424,7 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
             <label className="text-sm text-slate-400">Select File</label>
             <select
               value={selectedFile}
-              onChange={(e) => { setSelectedFile(e.target.value); setSelectedColumns([]); }}
+              onChange={(e) => { setSelectedFile(e.target.value); setSelectedColumns([]); localStorage.setItem('analysisSelectedFile', e.target.value); localStorage.removeItem('analysisSelectedColumns'); }}
               className="w-full bg-slate-800/50 border border-white/10 rounded-lg p-2 text-white outline-none focus:ring-2 ring-blue-500/50"
             >
               <option value="">-- Choose a file --</option>
@@ -379,14 +435,24 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
           <div className="space-y-2">
             <div className="flex justify-between items-center">
               <label className="text-sm text-emerald-400">Select Channels</label>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={clearAllColumns}
-                disabled={selectedColumns.length === 0}
-              >
-                Reset
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { hasPlottedRef.current = true; fetchData(); setActiveTab('analysis'); }}
+                  disabled={selectedColumns.length === 0}
+                >
+                  Plot
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={clearAllColumns}
+                  disabled={selectedColumns.length === 0}
+                >
+                  Reset
+                </Button>
+              </div>
             </div>
             <div className="h-120 overflow-y-auto border border-white/10 rounded-lg p-2 space-y-1 bg-slate-800/30">
               {availableColumns.map(col => (
@@ -518,16 +584,6 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
         <div ref={dashboardRef} className="md:col-span-2 space-y-6">
           <div className="flex gap-2 p-1 bg-slate-800/50 border border-white/10 rounded-xl w-fit">
             <button
-              onClick={() => setActiveTab('analysis')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                activeTab === 'analysis'
-                ? 'bg-blue-600 text-white shadow-lg'
-                : 'text-slate-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              Chart Analysis
-            </button>
-            <button
               onClick={() => setActiveTab('summary')}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 activeTab === 'summary'
@@ -536,6 +592,16 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
               }`}
             >
               File Summary
+            </button>
+            <button
+              onClick={() => setActiveTab('analysis')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'analysis'
+                ? 'bg-blue-600 text-white shadow-lg'
+                : 'text-slate-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              Chart Analysis
             </button>
             <button
               onClick={() => setActiveTab('trackPlot')}
@@ -607,10 +673,7 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
   }}
 />
                               <YAxis stroke="#94a3b8" fontSize={12} />
-                              <Tooltip
-                                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }}
-                                itemStyle={{ color: '#fff' }}
-                              />
+                              <Tooltip content={<TimeSeriesTooltip />} />
                               <Legend wrapperStyle={{ marginTop: '21px' }} />
                               {selectedColumns.map((col, idx) => (
                                 <Line

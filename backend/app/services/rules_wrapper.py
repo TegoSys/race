@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json
+from pathlib import Path
 import numpy as np
 from .rules_engine.rules import Status, load_config
 from .rules_engine.checker import RulesChecker
@@ -154,11 +155,13 @@ class RulesEngine:
         else:
             status = "WARNING"
 
-        # Save summary
+        # Save summary with rules snapshot
         summary_json = _sanitize_for_json(rule_summaries)
+        # Capture current rules config as snapshot
+        rules_snapshot = json.dumps(_sanitize_for_json(self._config))
         summary_res = db.execute(
-            "INSERT INTO rule_check_summaries (file_id, total_violations, status, summary_json) VALUES (%s, %s, %s, %s) RETURNING id",
-            (file_id, total_violations, status, json.dumps(summary_json)),
+            "INSERT INTO rule_check_summaries (file_id, total_violations, status, summary_json, rules_snapshot) VALUES (%s, %s, %s, %s, %s) RETURNING id",
+            (file_id, total_violations, status, json.dumps(summary_json), rules_snapshot),
         )
         summary_id = summary_res[0]["id"]
 

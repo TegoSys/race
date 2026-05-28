@@ -1,6 +1,14 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import apiClient from '../lib/api';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
+
+const cleanMetadata = (value: string): string =>
+  String(value)
+    .trim()
+    .replace(/"/g, '')
+    .replace(/,+/g, ',')
+    .replace(/,$/, '')
+    .replace(/\b\w/g, c => c.toUpperCase());
 
 export const Dashboard: React.FC = () => {
   const [stats, setStats] = useState<{
@@ -10,12 +18,19 @@ export const Dashboard: React.FC = () => {
     total_races: number;
   } | null>(null);
   const [files, setFiles] = useState<{ id: number, filename: string }[]>([]);
-  const [selectedFileId, setSelectedFileId] = useState<string>('');
+  const [selectedFileId, setSelectedFileId] = useState(() => localStorage.getItem('dashboardSelectedFile') || '');
   const [selectedFileSummary, setSelectedFileSummary] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
+  }, []);
+
+  // Fetch summary if a file was persisted from a previous visit
+  useEffect(() => {
+    if (selectedFileId) {
+      handleFileChange(selectedFileId);
+    }
   }, []);
 
   const fetchDashboardData = async () => {
@@ -33,6 +48,7 @@ export const Dashboard: React.FC = () => {
 
   const handleFileChange = async (fileId: string) => {
     setSelectedFileId(fileId);
+    localStorage.setItem('dashboardSelectedFile', fileId);
     if (!fileId) {
       setSelectedFileSummary(null);
       return;
@@ -85,9 +101,9 @@ export const Dashboard: React.FC = () => {
                     ? JSON.parse(selectedFileSummary.metadata)
                     : selectedFileSummary.metadata || {}
                   ).map(([key, value]) => (
-                    <div key={key} className="flex justify-between gap-4">
-                      <span className="text-slate-500">{key.replace('_', ' ')}:</span>
-                      <span className="text-white font-mono">{String(value)}</span>
+                    <div key={key} className="grid grid-cols-[auto_1fr] gap-2">
+                      <span className="text-slate-500 text-right">{key.replace('_', ' ')}:</span>
+                      <span className="text-white font-mono">{cleanMetadata(String(value))}</span>
                     </div>
                   ))}
                 </div>
@@ -99,7 +115,7 @@ export const Dashboard: React.FC = () => {
                     .sort(([, a], [, b]) => Math.abs(b as number) - Math.abs(a as number))
                     .slice(0, 3)
                     .map(([pair, val]) => (
-                      <div key={pair} className="flex justify-between items-center text-xs">
+                      <div key={pair} className="flex justify-between items-center text-xs gap-3">
                         <span className="text-slate-300">{pair}</span>
                         <span className={`font-mono font-bold ${Math.abs(val as number) > 0.7 ? 'text-emerald-400' : 'text-blue-400'}`}>
                           {Number(val).toFixed(3)}
@@ -139,3 +155,4 @@ export const Dashboard: React.FC = () => {
     </div>
   );
 };
+
