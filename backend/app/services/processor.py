@@ -182,3 +182,134 @@ class DataProcessor:
                 continue
 
         return top_corrs
+
+    def extract_lap_data(self, file_path: str, file_id: int) -> Dict[str, Any]:
+        """Extract per-lap statistics and session characterization from a MoTeC CSV.
+
+        Returns a dict with:
+          - 'laps': list of 8-tuples (file_id, lap_number, duration, max_speed, avg_speed, min_speed, max_rpm, is_pit_stop)
+          - 'session': dict of session-level summary stats
+          - 'histogram': list of {bin_start, bin_end, count} dicts (20 bins)
+        Returns {'laps': [], 'session': None, 'histogram': []} for non-MoTeC or missing columns.
+        """
+        if not self.is_motec_file(file_path):
+            return {'laps': [], 'session': None, 'histogram': []}
+
+        metadata, columns, units, start_row = self._parse_motec_header(file_path)
+
+        if 'Lap Number' not in columns:
+            return {'laps': [], 'session': None, 'histogram': []}
+
+        # Determine speed column
+        speed_col = 'GPS Speed'
+        if speed_col not in columns:
+            speed_col = 'Vehicle Speed' if 'Vehicle Speed' in columns else None
+
+        # Determine RPM column
+        rpm_col = 'Engine Speed Reference Engine Speed'
+        if rpm_col not in columns:
+            rpm_col = 'Engine Speed Reference Instantaneous' if 'Engine Speed Reference Instantaneous' in columns else None
+
+        if speed_col is None:
+            return {'laps': [], 'session': None, 'histogram': []}
+
+        lap_columns = ['Lap Number', speed_col]
+        if rpm_col:
+            lap_columns.append(rpm_col)
+
+        df = pd.read_csv(file_path, skiprows=start_row, names=columns, index_col=0, usecols=lap_columns + [columns[0]])
+        df = df.apply(pd.to_numeric, errors='coerce')
+        df = df.fillna(0)
+
+        max_lap = int(df['Lap Number'].max())
+        lap_stats = []
+
+        for lap_num in range(1, max_lap + 1):
+            lap_mask = (df['Lap Number'] == lap_num)
+            lap_data = df[lap_mask]
+            if len(lap_data) == 0:
+                continue
+
+            start_time = float(lap_data.index[0])
+            end_time = float(lap_data.index[-1])
+            duration = end_time - start_time
+            max_speed = float(lap_data[speed_col].max())
+            avg_speed = float(lap_data[speed_col].mean())
+            min_speed = float(lap_data[speed_col].min())
+
+            max_rpm = float(lap_data[rpm_col].max()) if rpm_col is not None else 0.0
+
+            lap_stats.append({
+                'lap': lap_num,
+                'duration': duration,
+                'max_speed': max_speed,
+                'avg_speed': avg_speed,
+                'min_speed': min_speed,
+                'max_rpm': max_rpm
+            })
+
+        if not lap_stats:
+            return {'laps': [], 'session': None, 'histogram': []}
+
+        # Pit-stop detection: flag laps > 2x median duration
+        lap_durations = [ls['duration'] for ls in lap_stats]
+        median_duration = np.median(lap_durations)
+        pit_threshold = median_duration * 2
+
+        # Build lap tuples
+        lap_tuples = []
+        for ls in lap_stats:
+            is_pit = bool(ls['duration'] > pit_threshold)
+            lap_tuples.append((
+                file_id, ls['lap'], ls['duration'],
+                ls['max_speed'], ls['avg_speed'], ls['min_speed'],
+                ls['max_rpm'], is_pit
+            ))
+
+        # Filter racing laps (non-pit-stop)
+        racing_laps = [ls for ls in lap_stats if ls['duration'] <= pit_threshold]
+        pit_stops = [ls for ls in lap_stats if ls['duration'] > pit_threshold]
+
+        # Session-level stats
+        session = {
+            'total_laps': len(lap_stats),
+            'top_speed': float(df[speed_col].max()),
+            'peak_rpm': float(df[rpm_col].max()) if rpm_col is not None else 0.0,
+            'total_duration': float(df.index[-1])
+        }
+
+        if racing_laps:
+            racing_durations = [ls['duration'] for ls in racing_laps]
+            session['fastest_lap_time'] = min(racing_durations)
+            session['fastest_lap_number'] = min(racing_laps, key=lambda x: x['duration'])['lap']
+            session['slowest_lap_time'] = max(racing_durations)
+            session['slowest_lap_number'] = max(racing_laps, key=lambda x: x['duration'])['lap']
+            session['average_lap_time'] = float(np.mean(racing_durations))
+            session['standard_deviation'] = float(np.std(racing_durations, ddof=1))
+            session['racing_lap_count'] = len(racing_laps)
+        else:
+            session['fastest_lap_time'] = 0.0
+            session['fastest_lap_number'] = 0
+            session['slowest_lap_time'] = 0.0
+            session['slowest_lap_number'] = 0
+            session['average_lap_time'] = 0.0
+            session['standard_deviation'] = 0.0
+            session['racing_lap_count'] = 0
+
+        session['pit_stop_count'] = len(pit_stops)
+
+        # Histogram of all lap durations (20 bins)
+        hist, bin_edges = np.histogram(lap_durations, bins=20)
+        histogram = []
+        for i in range(len(hist)):
+            histogram.append({
+                'bin_start': round(float(bin_edges[i]), 1),
+                'bin_end': round(float(bin_edges[i + 1]), 1),
+                'count': int(hist[i])
+            })
+
+        return {
+            'laps': lap_tuples,
+            'session': session,
+            'histogram': histogram
+        }

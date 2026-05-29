@@ -20,6 +20,7 @@ export const Dashboard: React.FC = () => {
   const [files, setFiles] = useState<{ id: number, filename: string }[]>([]);
   const [selectedFileId, setSelectedFileId] = useState(() => localStorage.getItem('dashboardSelectedFile') || '');
   const [selectedFileSummary, setSelectedFileSummary] = useState<any>(null);
+  const [selectedFileLaps, setSelectedFileLaps] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -51,15 +52,20 @@ export const Dashboard: React.FC = () => {
     localStorage.setItem('dashboardSelectedFile', fileId);
     if (!fileId) {
       setSelectedFileSummary(null);
+      setSelectedFileLaps(null);
       return;
     }
 
     setLoading(true);
     try {
-      const res = await apiClient.get(`/files/${fileId}/summary`);
-      setSelectedFileSummary(res.data);
+      const [summaryRes, lapsRes] = await Promise.all([
+        apiClient.get(`/files/${fileId}/summary`),
+        apiClient.get(`/files/${fileId}/laps`)
+      ]);
+      setSelectedFileSummary(summaryRes.data);
+      setSelectedFileLaps(lapsRes.data);
     } catch (e) {
-      console.error('Error fetching file summary', e);
+      console.error('Error fetching file data', e);
     } finally {
       setLoading(false);
     }
@@ -93,7 +99,8 @@ export const Dashboard: React.FC = () => {
               <span className="text-blue-400 animate-pulse">Loading file insights...</span>
             </div>
           ) : selectedFileSummary ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Card variant="glass" className="p-4 bg-white/5">
                 <h4 className="text-sm font-medium text-slate-400 mb-2">File Metadata</h4>
                 <div className="space-y-1 text-sm">
@@ -125,6 +132,73 @@ export const Dashboard: React.FC = () => {
                   }
                 </div>
               </Card>
+            </div>
+
+            {/* Lap Performance Section */}
+            {selectedFileLaps && selectedFileLaps.supported && selectedFileLaps.session ? (
+              <Card variant="glass" className="p-6">
+                <h3 className="text-lg font-medium text-white mb-4">Lap Performance</h3>
+                {/* Session Highlights Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+                  {[
+                    { label: 'Top Speed', value: selectedFileLaps.session.top_speed, unit: 'km/h' },
+                    { label: 'Peak RPM', value: selectedFileLaps.session.peak_rpm, unit: '' },
+                    { label: 'Fastest Lap', value: selectedFileLaps.session.fastest_lap_time, unit: `s (Lp ${selectedFileLaps.session.fastest_lap_number})` },
+                    { label: 'Slowest Lap', value: selectedFileLaps.session.slowest_lap_time, unit: `s (Lp ${selectedFileLaps.session.slowest_lap_number})` },
+                    { label: 'Avg Lap Time', value: selectedFileLaps.session.average_lap_time, unit: 's' },
+                    { label: 'Std Deviation', value: selectedFileLaps.session.standard_deviation, unit: 's' },
+                    { label: 'Pit Stops', value: selectedFileLaps.session.pit_stop_count, unit: `of ${selectedFileLaps.session.total_laps} laps` },
+                  ].map((item, i) => (
+                    <div key={i} className="p-3 bg-white/5 rounded-lg border border-white/10">
+                      <div className="text-xs text-slate-400 uppercase font-semibold">{item.label}</div>
+                      <div className="text-white font-mono">
+                        {typeof item.value === 'number' ? item.value.toFixed(1) : item.value}
+                        {item.unit && <span className="text-slate-400 text-xs ml-1">{item.unit}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {/* Per-Lap Table */}
+                <div className="overflow-x-auto max-h-96 border border-white/10 rounded-lg bg-slate-800/30">
+                  <table className="w-full text-left text-sm text-slate-300">
+                    <thead className="sticky top-0 bg-slate-900 text-white">
+                      <tr>
+                        <th className="p-2 border-b border-white/10">Lap</th>
+                        <th className="p-2 border-b border-white/10">Duration (s)</th>
+                        <th className="p-2 border-b border-white/10">Max Speed</th>
+                        <th className="p-2 border-b border-white/10">Avg Speed</th>
+                        <th className="p-2 border-b border-white/10">Min Speed</th>
+                        <th className="p-2 border-b border-white/10">Max RPM</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedFileLaps.laps.map((lap: any) => {
+                        const isFastest = lap.lap_number === selectedFileLaps.session?.fastest_lap_number;
+                        const rowClass = lap.is_pit_stop
+                          ? 'bg-amber-900/20'
+                          : isFastest
+                            ? 'bg-emerald-900/20'
+                            : '';
+                        return (
+                          <tr key={lap.lap_number} className={`hover:bg-white/5 transition-colors ${rowClass}`}>
+                            <td className="p-2 border-b border-white/5 font-medium text-white">{lap.lap_number}</td>
+                            <td className="p-2 border-b border-white/5 font-mono">{lap.duration?.toFixed(1)}</td>
+                            <td className="p-2 border-b border-white/5 font-mono">{lap.max_speed?.toFixed(1)}</td>
+                            <td className="p-2 border-b border-white/5 font-mono">{lap.avg_speed?.toFixed(1)}</td>
+                            <td className="p-2 border-b border-white/5 font-mono">{lap.min_speed?.toFixed(1)}</td>
+                            <td className="p-2 border-b border-white/5 font-mono">{lap.max_rpm?.toFixed(0)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            ) : selectedFileLaps && !selectedFileLaps.supported ? (
+              <div className="p-6 border-2 border-dashed border-white/10 rounded-2xl text-slate-500 italic text-center">
+                Lap data not available for this file.
+              </div>
+            ) : null}
             </div>
           ) : (
             <div className="h-64 bg-slate-800/50 rounded-xl border border-slate-700 flex items-center justify-center">
