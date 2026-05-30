@@ -4,6 +4,72 @@ import os
 import csv
 from typing import Dict, Any, List, Tuple, Optional
 from itertools import islice
+
+
+def _great_circle_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Approximate distance in meters between two GPS coordinates (Haversine)."""
+    R = 6_371_000.0
+    dlat = np.radians(lat2 - lat1)
+    dlon = np.radians(lon2 - lon1)
+    a = (np.sin(dlat / 2) ** 2 +
+         np.cos(np.radians(lat1)) * np.cos(np.radians(lat2)) * np.sin(dlon / 2) ** 2)
+    return R * 2 * np.arcsin(np.sqrt(a))
+
+
+def _gps_cluster_confirm(candidates: list, df_full: pd.DataFrame,
+                         has_gps: bool) -> tuple:
+    """Confirm duration-flagged pit-stop candidates by GPS coordinate clustering.
+
+    Real pit stops share a common GPS coordinate (the pit box). Off-track
+    incidents stop at random locations.  Candidates with >= 2 neighbours
+    within PIT_BOX_RADIUS are confirmed as pit stops.
+
+    Returns (confirmed_list, rejected_list).
+    """
+    PIT_BOX_RADIUS = 100.0   # metres
+    SPEED_THRESHOLD = 15.0   # km/h — below this = car was stationary
+
+    if not has_gps or len(candidates) < 2:
+        return list(candidates), []
+
+    stop_points = []
+    for ls in candidates:
+        region = df_full.loc[ls['start']:ls['end']]
+        if 'GPS Speed' not in region.columns:
+            continue
+        min_speed_idx = region['GPS Speed'].idxmin()
+        if region.loc[min_speed_idx, 'GPS Speed'] > SPEED_THRESHOLD:
+            continue
+        lat = region.loc[min_speed_idx, 'GPS Latitude']
+        lon = region.loc[min_speed_idx, 'GPS Longitude']
+        if abs(lat) < 1.0 or abs(lon) < 1.0:
+            continue
+        stop_points.append((ls, float(lat), float(lon)))
+
+    if len(stop_points) < 2:
+        return list(candidates), []
+
+    n = len(stop_points)
+    neighbor_counts = [0] * n
+    for i in range(n):
+        for j in range(i + 1, n):
+            d = _great_circle_m(stop_points[i][1], stop_points[i][2],
+                               stop_points[j][1], stop_points[j][2])
+            if d < PIT_BOX_RADIUS:
+                neighbor_counts[i] += 1
+                neighbor_counts[j] += 1
+
+    confirmed = [stop_points[i][0] for i in range(n) if neighbor_counts[i] >= 2]
+    rejected = [stop_points[i][0] for i in range(n) if neighbor_counts[i] < 2]
+
+    # Candidates that never slowed enough to stop → rejected
+    for ls in candidates:
+        if ls not in confirmed and ls not in rejected:
+            rejected.append(ls)
+
+    return confirmed, rejected
+
+
 class DataProcessor:
     def __init__(self, storage_path: str):
         self.storage_path = storage_path
@@ -186,106 +252,193 @@ class DataProcessor:
     def extract_lap_data(self, file_path: str, file_id: int) -> Dict[str, Any]:
         """Extract per-lap statistics and session characterization from a MoTeC CSV.
 
+        Uses transition-based lap detection (Lap State filter + Lap Number changes
+        + time gaps), hybrid pit stop detection (Lap State + duration + GPS clustering),
+        and IQR-based lap classification (partial / slow / racing).
+
         Returns a dict with:
-          - 'laps': list of 8-tuples (file_id, lap_number, duration, max_speed, avg_speed, min_speed, max_rpm, is_pit_stop)
-          - 'session': dict of session-level summary stats
-          - 'histogram': list of {bin_start, bin_end, count} dicts (20 bins)
-        Returns {'laps': [], 'session': None, 'histogram': []} for non-MoTeC or missing columns.
+          - 'laps': list of 8-tuples (file_id, lap_number, duration, max_speed,
+            avg_speed, min_speed, max_rpm, is_pit_stop)
+          - 'session': dict of session-level summary stats (from racing laps only)
+          - 'histogram': list of {bin_start, bin_end, count} dicts — racing laps only
+        Returns {'laps': [], 'session': None, 'histogram': []} for non-MoTeC or
+        missing columns.
         """
         if not self.is_motec_file(file_path):
             return {'laps': [], 'session': None, 'histogram': []}
 
         metadata, columns, units, start_row = self._parse_motec_header(file_path)
 
-        if 'Lap Number' not in columns:
+        # Require Lap Number and Lap State
+        if 'Lap Number' not in columns or 'Lap State' not in columns:
             return {'laps': [], 'session': None, 'histogram': []}
 
         # Determine speed column
         speed_col = 'GPS Speed'
         if speed_col not in columns:
             speed_col = 'Vehicle Speed' if 'Vehicle Speed' in columns else None
+        if speed_col is None:
+            return {'laps': [], 'session': None, 'histogram': []}
 
         # Determine RPM column
         rpm_col = 'Engine Speed Reference Engine Speed'
         if rpm_col not in columns:
-            rpm_col = 'Engine Speed Reference Instantaneous' if 'Engine Speed Reference Instantaneous' in columns else None
+            rpm_col = ('Engine Speed Reference Instantaneous'
+                       if 'Engine Speed Reference Instantaneous' in columns
+                       else None)
 
-        if speed_col is None:
-            return {'laps': [], 'session': None, 'histogram': []}
+        # GPS columns (optional — used for pit-stop confirmation)
+        has_gps = ('GPS Latitude' in columns and 'GPS Longitude' in columns)
 
-        lap_columns = ['Lap Number', speed_col]
+        # Build usecols
+        load_cols = ['Lap State', 'Lap Number', speed_col]
         if rpm_col:
-            lap_columns.append(rpm_col)
+            load_cols.append(rpm_col)
+        if has_gps:
+            load_cols.extend(['GPS Latitude', 'GPS Longitude'])
+        # 'GPS Speed' may differ from speed_col — add it if missing
+        if 'GPS Speed' in columns and 'GPS Speed' not in load_cols:
+            load_cols.append('GPS Speed')
+        load_cols.append(columns[0])  # Time index
 
-        df = pd.read_csv(file_path, skiprows=start_row, names=columns, index_col=0, usecols=lap_columns + [columns[0]])
+        df = pd.read_csv(file_path, skiprows=start_row, names=columns,
+                         index_col=0, usecols=load_cols)
         df = df.apply(pd.to_numeric, errors='coerce')
         df = df.fillna(0)
 
-        max_lap = int(df['Lap Number'].max())
+        # Verify required columns made it through usecols
+        if 'Lap Number' not in df.columns or 'Lap State' not in df.columns:
+            return {'laps': [], 'session': None, 'histogram': []}
+
+        # ---- Transition-based lap detection (within on-track racing data) ----
+        racing = df[df['Lap State'] == 3].copy()
+        if racing.empty:
+            return {'laps': [], 'session': None, 'histogram': []}
+
+        racing['lap_num_prev'] = racing['Lap Number'].shift(1)
+        time_diff = racing.index.to_series().diff()
+        gap_threshold = 0.05  # 5× sample interval (100 Hz → 0.01 s)
+        has_time_gap = time_diff > gap_threshold
+        racing['is_lap_start'] = (racing.index == racing.index[0]) | \
+                                (racing['Lap Number'] != racing['lap_num_prev']) | \
+                                has_time_gap
+        racing['sequential_lap_id'] = racing['is_lap_start'].cumsum()
+
+        # ---- Per-lap stats from racing segments ----
         lap_stats = []
-
-        for lap_num in range(1, max_lap + 1):
-            lap_mask = (df['Lap Number'] == lap_num)
-            lap_data = df[lap_mask]
-            if len(lap_data) == 0:
-                continue
-
-            start_time = float(lap_data.index[0])
-            end_time = float(lap_data.index[-1])
+        for lap_id, group in racing.groupby('sequential_lap_id'):
+            start_time = float(group.index[0])
+            end_time = float(group.index[-1])
             duration = end_time - start_time
-            max_speed = float(lap_data[speed_col].max())
-            avg_speed = float(lap_data[speed_col].mean())
-            min_speed = float(lap_data[speed_col].min())
-
-            max_rpm = float(lap_data[rpm_col].max()) if rpm_col is not None else 0.0
+            max_speed = float(group[speed_col].max())
+            avg_speed = float(group[speed_col].mean())
+            min_speed = float(group[speed_col].min())
+            max_rpm = float(group[rpm_col].max()) if rpm_col else 0.0
 
             lap_stats.append({
-                'lap': lap_num,
+                'lap': int(lap_id),
+                'start': start_time,
+                'end': end_time,
                 'duration': duration,
                 'max_speed': max_speed,
                 'avg_speed': avg_speed,
                 'min_speed': min_speed,
-                'max_rpm': max_rpm
+                'max_rpm': max_rpm,
+                'category': 'racing',  # default — refined below
             })
 
         if not lap_stats:
             return {'laps': [], 'session': None, 'histogram': []}
 
-        # Pit-stop detection: flag laps > 2x median duration
-        lap_durations = [ls['duration'] for ls in lap_stats]
-        median_duration = np.median(lap_durations)
-        pit_threshold = median_duration * 2
+        # ---- Hybrid pit-stop detection ----
 
-        # Build lap tuples
+        # Step 1: Lap State-based (practice-style — Lap State drops mid-lap)
+        for ls in lap_stats:
+            lap_region = df.loc[ls['start']:ls['end']]
+            ls['is_pit_stop'] = bool(
+                (lap_region['Lap State'] <= 1).any())
+        ls_pit_stops = [ls for ls in lap_stats if ls['is_pit_stop']]
+
+        # Step 2: Duration-based candidates (race-style — Lap State never drops)
+        non_pit_remaining = [ls for ls in lap_stats if not ls['is_pit_stop']]
+        if len(non_pit_remaining) >= 2:
+            median_dur = float(np.median(
+                [ls['duration'] for ls in non_pit_remaining]))
+            pit_threshold = median_dur * 2
+            dur_candidates = [ls for ls in non_pit_remaining
+                             if ls['duration'] > pit_threshold]
+            non_pit_remaining = [ls for ls in non_pit_remaining
+                                if ls['duration'] <= pit_threshold]
+        else:
+            median_dur = 0.0
+            pit_threshold = 0.0
+            dur_candidates = []
+
+        # Step 3: GPS pit-box confirmation for duration-flagged candidates
+        gps_confirmed, gps_rejected = _gps_cluster_confirm(
+            dur_candidates, df, has_gps)
+        all_pit_stops = ls_pit_stops + gps_confirmed
+        for ls in all_pit_stops:
+            ls['category'] = 'pit_stop'
+            ls['is_pit_stop'] = True
+
+        # Merge GPS-rejected candidates back — they're slow, not pit stops
+        non_pit_remaining.extend(gps_rejected)
+
+        # ---- IQR-based classification of remaining laps ----
+        if len(non_pit_remaining) >= 2:
+            remaining_durations = [ls['duration'] for ls in non_pit_remaining]
+            q1 = float(np.percentile(remaining_durations, 25))
+            q3 = float(np.percentile(remaining_durations, 75))
+            iqr = q3 - q1
+            lower_bound = q1 - 1.5 * iqr
+            upper_bound = q3 + 1.5 * iqr
+
+            partial_laps = [ls for ls in non_pit_remaining
+                           if ls['duration'] < lower_bound]
+            slow_laps = [ls for ls in non_pit_remaining
+                        if ls['duration'] > upper_bound]
+            racing_laps = [ls for ls in non_pit_remaining
+                          if lower_bound <= ls['duration'] <= upper_bound]
+
+            for ls in partial_laps:
+                ls['category'] = 'partial'
+            for ls in slow_laps:
+                ls['category'] = 'slow'
+        else:
+            partial_laps = []
+            slow_laps = []
+            racing_laps = non_pit_remaining[:]
+
+        # ---- Build lap tuples for DB (same 8-tuple schema) ----
         lap_tuples = []
         for ls in lap_stats:
-            is_pit = bool(ls['duration'] > pit_threshold)
             lap_tuples.append((
                 file_id, ls['lap'], ls['duration'],
                 ls['max_speed'], ls['avg_speed'], ls['min_speed'],
-                ls['max_rpm'], is_pit
+                ls['max_rpm'], ls['is_pit_stop']
             ))
 
-        # Filter racing laps (non-pit-stop)
-        racing_laps = [ls for ls in lap_stats if ls['duration'] <= pit_threshold]
-        pit_stops = [ls for ls in lap_stats if ls['duration'] > pit_threshold]
-
-        # Session-level stats
+        # ---- Session-level stats (racing laps only) ----
         session = {
             'total_laps': len(lap_stats),
             'top_speed': float(df[speed_col].max()),
-            'peak_rpm': float(df[rpm_col].max()) if rpm_col is not None else 0.0,
-            'total_duration': float(df.index[-1])
+            'peak_rpm': float(df[rpm_col].max()) if rpm_col else 0.0,
+            'total_duration': float(df.index[-1]),
         }
 
         if racing_laps:
             racing_durations = [ls['duration'] for ls in racing_laps]
-            session['fastest_lap_time'] = min(racing_durations)
-            session['fastest_lap_number'] = min(racing_laps, key=lambda x: x['duration'])['lap']
-            session['slowest_lap_time'] = max(racing_durations)
-            session['slowest_lap_number'] = max(racing_laps, key=lambda x: x['duration'])['lap']
+            fastest = min(racing_laps, key=lambda x: x['duration'])
+            slowest = max(racing_laps, key=lambda x: x['duration'])
+            session['fastest_lap_time'] = fastest['duration']
+            session['fastest_lap_number'] = fastest['lap']
+            session['slowest_lap_time'] = slowest['duration']
+            session['slowest_lap_number'] = slowest['lap']
             session['average_lap_time'] = float(np.mean(racing_durations))
-            session['standard_deviation'] = float(np.std(racing_durations, ddof=1))
+            session['standard_deviation'] = (
+                float(np.std(racing_durations, ddof=1))
+                if len(racing_durations) > 1 else 0.0)
             session['racing_lap_count'] = len(racing_laps)
         else:
             session['fastest_lap_time'] = 0.0
@@ -296,10 +449,16 @@ class DataProcessor:
             session['standard_deviation'] = 0.0
             session['racing_lap_count'] = 0
 
-        session['pit_stop_count'] = len(pit_stops)
+        session['pit_stop_count'] = len(all_pit_stops)
+        session['partial_lap_count'] = len(partial_laps)
+        session['slow_lap_count'] = len(slow_laps)
 
-        # Histogram of all lap durations (20 bins)
-        hist, bin_edges = np.histogram(lap_durations, bins=20)
+        # ---- Histogram (racing laps only, 20 bins) ----
+        if racing_laps:
+            hist_durations = [ls['duration'] for ls in racing_laps]
+        else:
+            hist_durations = [ls['duration'] for ls in lap_stats]
+        hist, bin_edges = np.histogram(hist_durations, bins=20)
         histogram = []
         for i in range(len(hist)):
             histogram.append({
