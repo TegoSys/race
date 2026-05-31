@@ -96,7 +96,7 @@ const SummaryView = ({ summaryData, fileId }: { summaryData: any, fileId: string
                 .map(([key, value]) => (
                 <div key={key} className="p-3 bg-white/5 rounded-lg border border-white/10">
                   <div className="text-xs text-slate-400 uppercase font-semibold">{key.replace('_', ' ')}</div>
-                  <div className="text-white font-medium">{cleanMetadata(String(value))}</div>
+                  <div className="text-sm text-white font-medium">{cleanMetadata(String(value))}</div>
                 </div>
               ))}
             </div>

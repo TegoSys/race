@@ -23,6 +23,16 @@ export const Dashboard: React.FC = () => {
   const [selectedFileLaps, setSelectedFileLaps] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
+  // Extract venue and driver from metadata (first comma-separated value, case-insensitive key lookup)
+  const getMetadataFirst = (target: string): string => {
+    const meta = typeof selectedFileSummary?.metadata === 'string'
+      ? JSON.parse(selectedFileSummary.metadata)
+      : selectedFileSummary?.metadata || {};
+    const key = Object.keys(meta).find(k => k.toLowerCase() === target.toLowerCase());
+    if (!key) return '';
+    return String(meta[key]).split(',')[0].replace(/"/g, '').trim();
+  };
+
   useEffect(() => {
     fetchDashboardData();
   }, []);
@@ -100,67 +110,23 @@ export const Dashboard: React.FC = () => {
             </div>
           ) : selectedFileSummary ? (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
-                  <h3 className="text-lg font-medium text-white mb-4">File Metadata</h3>
-                  <div className="space-y-1 text-sm">
-                    {Object.entries(typeof selectedFileSummary.metadata === 'string'
-                      ? JSON.parse(selectedFileSummary.metadata)
-                      : selectedFileSummary.metadata || {}
-                    ).map(([key, value]) => {
-                      const isBeacon = key.toLowerCase().includes('beacon markers');
-                      if (isBeacon) {
-                        const beacons = String(value)
-                          .split(',')
-                          .map(b => cleanMetadata(b.trim()))
-                          .filter(b => b.length > 0);
-                        return (
-                          <div key={key} className="rounded-lg">
-                            <div className="mb-1">
-                              <span className="text-slate-400">{key.replace('_', ' ')}</span>
-                            </div>
-                            <div className="overflow-y-auto h-24 border border-white/10 rounded-lg bg-slate-800/30">
-                              {beacons.map((beacon, i) => (
-                                <div key={i} className="px-2 py-1.5 text-sm text-white font-mono border-b border-white/5 hover:bg-white/5 last:border-b-0">
-                                  {beacon}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      }
-                      return (
-                        <div key={key} className="grid grid-cols-[auto_1fr] gap-2">
-                          <span className="text-slate-400 text-right">{key.replace('_', ' ')}:</span>
-                          <span className="text-white font-mono">{cleanMetadata(String(value))}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-                <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
-                  <h3 className="text-lg font-medium text-white mb-4">Top Correlations</h3>
-                  <div className="space-y-2">
-                    {Object.entries(selectedFileSummary.correlations || {})
-                      .sort(([, a], [, b]) => Math.abs(b as number) - Math.abs(a as number))
-                      .slice(0, 3)
-                      .map(([pair, val]) => (
-                        <div key={pair} className="flex justify-between items-center text-xs gap-3">
-                          <span className="text-slate-300">{pair}</span>
-                          <span className={`font-mono font-bold ${Math.abs(val as number) > 0.7 ? 'text-emerald-400' : 'text-blue-400'}`}>
-                            {Number(val).toFixed(3)}
-                          </span>
-                        </div>
-                      ))
-                    }
-                  </div>
-                </div>
-              </div>
-
-              {/* Lap Performance Section */}
+              {/* Lap Performance Section — first */}
               {selectedFileLaps && selectedFileLaps.supported && selectedFileLaps.session ? (
                 <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
-                  <h3 className="text-lg font-medium text-white mb-4">Lap Performance</h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-medium text-white">Lap Performance</h3>
+                    <div className="text-sm text-slate-400">
+                      {(() => {
+                        const venue = getMetadataFirst('venue');
+                        const driver = getMetadataFirst('driver');
+                        const parts = [venue, driver].filter(Boolean);
+                        if (!parts.length) return null;
+                        return (
+                          <span>{parts.join(' · ')}</span>
+                        );
+                      })()}
+                    </div>
+                  </div>
                   {/* Session Highlights Grid */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
                     {[
@@ -222,6 +188,64 @@ export const Dashboard: React.FC = () => {
                   Lap data not available for this file.
                 </div>
               ) : null}
+
+              {/* File Metadata + Top Correlations — below */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
+                  <h3 className="text-lg font-medium text-white mb-4">File Metadata</h3>
+                  <div className="space-y-1 text-sm">
+                    {Object.entries(typeof selectedFileSummary.metadata === 'string'
+                      ? JSON.parse(selectedFileSummary.metadata)
+                      : selectedFileSummary.metadata || {}
+                    ).map(([key, value]) => {
+                      const isBeacon = key.toLowerCase().includes('beacon markers');
+                      if (isBeacon) {
+                        const beacons = String(value)
+                          .split(',')
+                          .map(b => cleanMetadata(b.trim()))
+                          .filter(b => b.length > 0);
+                        return (
+                          <div key={key} className="rounded-lg">
+                            <div className="mb-1">
+                              <span className="text-slate-400">{key.replace('_', ' ')}</span>
+                            </div>
+                            <div className="overflow-y-auto h-24 border border-white/10 rounded-lg bg-slate-800/30">
+                              {beacons.map((beacon, i) => (
+                                <div key={i} className="px-2 py-1.5 text-sm text-white font-mono border-b border-white/5 hover:bg-white/5 last:border-b-0">
+                                  {beacon}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div key={key} className="grid grid-cols-[auto_1fr] gap-2">
+                          <span className="text-slate-400 text-right">{key.replace('_', ' ')}:</span>
+                          <span className="text-white font-mono">{cleanMetadata(String(value))}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="p-6 bg-white/5 rounded-2xl border border-white/10">
+                  <h3 className="text-lg font-medium text-white mb-4">Top Correlations</h3>
+                  <div className="space-y-2">
+                    {Object.entries(selectedFileSummary.correlations || {})
+                      .sort(([, a], [, b]) => Math.abs(b as number) - Math.abs(a as number))
+                      .slice(0, 3)
+                      .map(([pair, val]) => (
+                        <div key={pair} className="flex justify-between items-center text-xs gap-3">
+                          <span className="text-slate-300">{pair}</span>
+                          <span className={`font-mono font-bold ${Math.abs(val as number) > 0.7 ? 'text-emerald-400' : 'text-blue-400'}`}>
+                            {Number(val).toFixed(3)}
+                          </span>
+                        </div>
+                      ))
+                    }
+                  </div>
+                </div>
+              </div>
             </div>
           ) : (
             <div className="h-64 border-2 border-dashed border-white/10 rounded-2xl flex items-center justify-center">
