@@ -96,7 +96,7 @@ const SummaryView = ({ summaryData, fileId }: { summaryData: any, fileId: string
                 .map(([key, value]) => (
                 <div key={key} className="p-3 bg-white/5 rounded-lg border border-white/10">
                   <div className="text-xs text-slate-400 uppercase font-semibold">{key.replace('_', ' ')}</div>
-                  <div className="text-white font-medium">{cleanMetadata(String(value))}</div>
+                  <div className="text-sm text-white font-medium">{cleanMetadata(String(value))}</div>
                 </div>
               ))}
             </div>
@@ -213,7 +213,8 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
   const [downsampleFactor, setDownsampleFactor] = useState<number>(100);
   const [data, setData] = useState<any[]>([]);
   const [summaryData, setSummaryData] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'analysis' | 'summary' | 'trackPlot'>('summary');
+  const [lapData, setLapData] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<'analysis' | 'summary' | 'trackPlot' | 'lapBreakdown'>('summary');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -261,6 +262,7 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
     if (selectedFile) {
       fetchColumns(selectedFile);
       fetchSummary(selectedFile);
+      fetchLapData(selectedFile);
     }
   }, []);
 
@@ -268,8 +270,10 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
     if (selectedFile) {
       fetchColumns(selectedFile);
       fetchSummary(selectedFile);
+      fetchLapData(selectedFile);
     } else {
       setSummaryData(null);
+      setLapData(null);
     }
   }, [selectedFile]);
 
@@ -314,6 +318,16 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
       setSummaryData(res.data);
     } catch (e) {
       console.error('Error fetching summary', e);
+    }
+  };
+
+  const fetchLapData = async (fileId: string) => {
+    try {
+      const res = await apiClient.get(`/files/${fileId}/laps`);
+      setLapData(res.data);
+    } catch (e) {
+      console.error('Error fetching lap data', e);
+      setLapData(null);
     }
   };
 
@@ -604,6 +618,16 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
               Chart Analysis
             </button>
             <button
+              onClick={() => setActiveTab('lapBreakdown')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'lapBreakdown'
+                ? 'bg-blue-600 text-white shadow-lg'
+                : 'text-slate-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              Lap Breakdown
+            </button>
+            <button
               onClick={() => setActiveTab('trackPlot')}
               disabled={!selectedFile || !availableColumns.includes('GPS Latitude') || !availableColumns.includes('GPS Longitude')}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
@@ -754,6 +778,107 @@ export const Analysis = ({ setPage, setSelectedFileId }: { setPage: (p: any) => 
                     setPage('diagnostics');
                   }}
                 />
+              )}
+              {activeTab === 'lapBreakdown' && selectedFile && (
+                <>
+                  {lapData && lapData.supported && lapData.session ? (
+                    <div className="space-y-6">
+                      {/* Session Highlights */}
+                      <Card variant="glass" className="p-6">
+                        <h3 className="text-lg font-medium text-white mb-4">Session Highlights</h3>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                          {[
+                            { label: 'Top Speed', value: lapData.session.top_speed, unit: 'km/h' },
+                            { label: 'Peak RPM', value: lapData.session.peak_rpm, unit: '' },
+                            { label: 'Fastest Lap', value: lapData.session.fastest_lap_time, unit: `s (Lp ${lapData.session.fastest_lap_number})` },
+                            { label: 'Slowest Lap', value: lapData.session.slowest_lap_time, unit: `s (Lp ${lapData.session.slowest_lap_number})` },
+                            { label: 'Avg Lap Time', value: lapData.session.average_lap_time, unit: 's' },
+                            { label: 'Std Deviation', value: lapData.session.standard_deviation, unit: 's' },
+                            { label: 'Racing Laps', value: lapData.session.racing_lap_count, unit: `of ${lapData.session.total_laps}` },
+                            { label: 'Pit Stops', value: lapData.session.pit_stop_count, unit: '' },
+                          ].map((item: any, i: number) => (
+                            <div key={i} className="p-3 bg-white/5 rounded-lg border border-white/10">
+                              <div className="text-xs text-slate-400 uppercase font-semibold">{item.label}</div>
+                              <div className="text-white font-mono">
+                                {typeof item.value === 'number' ? item.value.toFixed(1) : item.value}
+                                {item.unit && <span className="text-slate-400 text-xs ml-1">{item.unit}</span>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </Card>
+
+                      {/* Histogram */}
+                      <Card variant="glass" className="p-6">
+                        <h3 className="text-lg font-medium text-white mb-4">Lap Duration Distribution</h3>
+                        <div className="h-64 w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={lapData.histogram}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
+                              <XAxis dataKey="bin_end" stroke="#94a3b8" fontSize={10} name="Duration (s)" />
+                              <YAxis stroke="#94a3b8" fontSize={12} name="Count" />
+                              <Tooltip
+                                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }}
+                                itemStyle={{ color: '#fff' }}
+                              />
+                              <Bar dataKey="count" fill="#3b82f6" />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </Card>
+
+                      {/* Per-Lap Table */}
+                      <Card variant="glass" className="p-6">
+                        <div className="flex justify-between items-center mb-4">
+                          <h3 className="text-lg font-medium text-white">Per-Lap Data</h3>
+                          {lapData.session.pit_stop_count > 0 && (
+                            <span className="text-xs bg-amber-900/50 text-amber-300 px-2 py-1 rounded-full border border-amber-700/50">
+                              {lapData.session.pit_stop_count} pit stop{lapData.session.pit_stop_count !== 1 ? 's' : ''} detected
+                            </span>
+                          )}
+                        </div>
+                        <div className="overflow-x-auto max-h-96 border border-white/10 rounded-lg bg-slate-800/30">
+                          <table className="w-full text-left text-sm text-slate-300">
+                            <thead className="sticky top-0 bg-slate-900 text-white">
+                              <tr>
+                                <th className="p-2 border-b border-white/10">Lap</th>
+                                <th className="p-2 border-b border-white/10">Duration (s)</th>
+                                <th className="p-2 border-b border-white/10">Max Speed</th>
+                                <th className="p-2 border-b border-white/10">Avg Speed</th>
+                                <th className="p-2 border-b border-white/10">Min Speed</th>
+                                <th className="p-2 border-b border-white/10">Max RPM</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {lapData.laps.map((lap: any) => {
+                                const isFastest = lap.lap_number === lapData.session?.fastest_lap_number;
+                                const rowClass = lap.is_pit_stop
+                                  ? 'bg-amber-900/20'
+                                  : isFastest
+                                    ? 'bg-emerald-900/20'
+                                    : '';
+                                return (
+                                  <tr key={lap.lap_number} className={`hover:bg-white/5 transition-colors ${rowClass}`}>
+                                    <td className="p-2 border-b border-white/5 font-medium text-white">{lap.lap_number}</td>
+                                    <td className="p-2 border-b border-white/5 font-mono">{lap.duration?.toFixed(1)}</td>
+                                    <td className="p-2 border-b border-white/5 font-mono">{lap.max_speed?.toFixed(1)}</td>
+                                    <td className="p-2 border-b border-white/5 font-mono">{lap.avg_speed?.toFixed(1)}</td>
+                                    <td className="p-2 border-b border-white/5 font-mono">{lap.min_speed?.toFixed(1)}</td>
+                                    <td className="p-2 border-b border-white/5 font-mono">{lap.max_rpm?.toFixed(0)}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </Card>
+                    </div>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-slate-500 italic border-2 border-dashed border-white/10 rounded-2xl min-h-[400px]">
+                      Lap data not available for this file.
+                    </div>
+                  )}
+                </>
               )}
               {activeTab === 'trackPlot' && selectedFile && (
                 <TrackPlot fileId={selectedFile} />

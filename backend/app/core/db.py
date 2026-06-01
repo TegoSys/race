@@ -108,6 +108,19 @@ class Database:
                 value FLOAT,
                 context_json JSONB
             );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS lap_data (
+                id SERIAL PRIMARY KEY,
+                file_id INTEGER REFERENCES race_files(id) ON DELETE CASCADE,
+                lap_number INTEGER NOT NULL,
+                duration FLOAT,
+                max_speed FLOAT,
+                avg_speed FLOAT,
+                min_speed FLOAT,
+                max_rpm FLOAT,
+                is_pit_stop BOOLEAN DEFAULT FALSE
+            );
             """
         ]
         for table_sql in tables:

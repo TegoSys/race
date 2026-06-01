@@ -10,6 +10,7 @@ from .core.db import db
 import os
 import json
 import shutil
+import traceback
 import numpy as np
 from pathlib import Path
 import yaml
@@ -137,6 +138,35 @@ def perform_processing(file_id: int, file_path: str):
         "INSERT INTO analysis_results (file_id, analysis_type, result_json) VALUES (%s, %s, %s)",
         (file_id, 'correlation', json.dumps(sanitized_corrs))
     )
+
+    # Extract and save lap data
+    try:
+        lap_result = processor.extract_lap_data(file_path, file_id)
+        lap_tuples = lap_result.get('laps', [])
+        if lap_tuples:
+            db.execute("DELETE FROM lap_data WHERE file_id = %s", (file_id,))
+            db.execute_many(
+                "INSERT INTO lap_data (file_id, lap_number, duration, max_speed, avg_speed, min_speed, max_rpm, is_pit_stop) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                lap_tuples
+            )
+            session_stats = lap_result.get('session')
+            if session_stats:
+                db.execute("DELETE FROM analysis_results WHERE file_id = %s AND analysis_type = 'lap_session'", (file_id,))
+                db.execute(
+                    "INSERT INTO analysis_results (file_id, analysis_type, result_json) VALUES (%s, %s, %s)",
+                    (file_id, 'lap_session', json.dumps(session_stats))
+                )
+            histogram = lap_result.get('histogram', [])
+            if histogram:
+                db.execute("DELETE FROM analysis_results WHERE file_id = %s AND analysis_type = 'lap_histogram'", (file_id,))
+                db.execute(
+                    "INSERT INTO analysis_results (file_id, analysis_type, result_json) VALUES (%s, %s, %s)",
+                    (file_id, 'lap_histogram', json.dumps(histogram))
+                )
+    except Exception as e:
+        print(f"ERROR: Lap extraction failed: {e}")
+        traceback.print_exc()
+
     return metadata, stats, correlations
 
 @app.get("/rules")
@@ -320,6 +350,42 @@ async def get_file_summary(file_id: int, user: str = Depends(get_current_user)):
         "metadata": metadata,
         "stats": stats,
         "correlations": correlations
+    }
+
+@app.get("/files/{file_id}/laps")
+async def get_file_laps(file_id: int, user: str = Depends(get_current_user)):
+    # Verify file exists
+    meta_res = db.execute("SELECT id FROM race_files WHERE id = %s", (file_id,))
+    if not meta_res:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    # Query lap data
+    laps = db.execute(
+        "SELECT lap_number, duration, max_speed, avg_speed, min_speed, max_rpm, is_pit_stop FROM lap_data WHERE file_id = %s ORDER BY lap_number",
+        (file_id,)
+    )
+    if not laps:
+        return {"session": None, "laps": [], "supported": False}
+
+    # Query session stats
+    session_res = db.execute(
+        "SELECT result_json FROM analysis_results WHERE file_id = %s AND analysis_type = 'lap_session'",
+        (file_id,)
+    )
+    session = session_res[0]['result_json'] if session_res else None
+
+    # Query histogram
+    hist_res = db.execute(
+        "SELECT result_json FROM analysis_results WHERE file_id = %s AND analysis_type = 'lap_histogram'",
+        (file_id,)
+    )
+    histogram = hist_res[0]['result_json'] if hist_res else []
+
+    return {
+        "session": session,
+        "laps": laps,
+        "histogram": histogram,
+        "supported": True
     }
 
 @app.post("/files/{file_id}/run-checks")
